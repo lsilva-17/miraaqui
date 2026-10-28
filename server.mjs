@@ -26,7 +26,7 @@ function validateObject(o){
   if(typeof o.color!=='string'||!/^#[a-f\d]{6}$/i.test(o.color))status(400,'Cor inválida.');
   if(o.z!==undefined&&!Number.isFinite(o.z))status(400,'Ordem inválida.');
   if(o.type==='pen'&&(!Array.isArray(o.points)||o.points.length<2||o.points.length>5000||o.points.some(p=>!Array.isArray(p)||p.length!==2||!p.every(v=>typeof v==='number'&&Number.isFinite(v)&&Math.abs(v)<1e7))))status(400,'Desenho inválido.');
-  if(o.type==='line'&&(!/^[\w-]{1,100}$/.test(o.from)||!/^[\w-]{1,100}$/.test(o.to)))status(400,'Conector inválido.');
+  if(o.type==='line'){if(o.free){if(!Array.isArray(o.points)||o.points.length!==2||o.points.some(p=>!Array.isArray(p)||p.length!==2||!p.every(n=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1)))status(400,'Seta livre inválida.')}else if(!/^[\w-]{1,100}$/.test(o.from)||!/^[\w-]{1,100}$/.test(o.to))status(400,'Conector inválido.')}
   if(o.type==='image'&&(!/^data:image\/(png|jpeg|webp|gif);base64,/.test(o.src||'')||o.src.length>3_500_000))status(400,'Formato de imagem inválido.');
 }
 async function stream(db,req,res,board,user,client){
@@ -52,7 +52,7 @@ export async function handler(req,res){
   const url=new URL(req.url,'http://localhost'),p=url.pathname,method=req.method;
   const send=(v,code=200)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(v))};
   try{
-    if(!p.startsWith('/api/')){const file={'/':'index.html','/app.js':'app.js','/canvas-geometry.js':'canvas-geometry.js','/style.css':'style.css'}[p];if(!file)status(404,'Não encontrado.');res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8');res.end(await readFile(path.join(root,'public',file)));return}
+    if(!p.startsWith('/api/')){const file={'/':'index.html','/app.js':'app.js','/canvas-geometry.js':'canvas-geometry.js','/style.css':'style.css','/caaqui.css':'caaqui.css','/brand/caaqui-logo.png':'brand/caaqui-logo.png'}[p]||(/^\/fonts\/poppins-(400|500|600|700)\.ttf$/.test(p)?p.slice(1):null);if(!file)status(404,'Não encontrado.');res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.png')?'image/png':file.endsWith('.ttf')?'font/ttf':'text/html; charset=utf-8');res.end(await readFile(path.join(root,'public',file)));return}
     if(!['GET','HEAD'].includes(method)&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)status(403,'Origem inválida.');
     const db=await database();
     if(p==='/api/status'&&method==='GET')return send({setup:!await db.one('SELECT id FROM users LIMIT 1'),org:await org(db)});

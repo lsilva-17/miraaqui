@@ -1,0 +1,22 @@
+@font-face{font-family:Poppins;src:url('/fonts/poppins-400.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:Poppins;src:url('/fonts/poppins-500.ttf') format('truetype');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:Poppins;src:url('/fonts/poppins-600.ttf') format('truetype');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:Poppins;src:url('/fonts/poppins-700.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+:root{--ink:#1e131e;--muted:#77716f;--line:#e4e0da;--bg:#f2f1ef;--purple:#f0612d;--mint:#cbeef3}
+body{font-family:Poppins,'Segoe UI',sans-serif;color:var(--ink)}
+.brand{display:flex;flex-direction:column;align-items:flex-start;gap:3px;letter-spacing:-1.1px;color:#1e131e;line-height:1.15}.brand .product-name{font-size:26px;font-weight:700}.product-by{display:flex;align-items:center;gap:7px;letter-spacing:0;color:#77716f;font-size:9px;font-weight:400}.product-by img{width:70px;height:auto;display:block}
+.workspace{margin-top:23px;background:#faf9f7}.workspace>span{background:#ffede1;color:#a43813}.workspace strong{color:#1e131e}
+.nav.active{background:#ffede1;color:#1e131e}.nav.active>span{color:#dc4e1b}.sideheading,.navlabel{color:#88817d}
+.primary{background:#f0612d;color:#1e131e;box-shadow:0 3px 6px #f0612d20;font-weight:600}.primary:hover{background:#fb8c00}
+button:focus-visible,a:focus-visible{outline-color:#f0612d}.connection-handle:focus-visible{outline-color:#4262ff}
+.topbar{background:#fff;border-bottom-color:#e4e0da}.privacy{color:#716b69}.breadcrumbs{color:#817974}.breadcrumbs strong{color:#494047}
+h1{color:#1e131e;letter-spacing:-1.8px}h1 span{color:#d94d1a}.intro p{color:#756c67}.eyebrow{color:#b5471c}.sectionhead p,.template small{color:#827973}
+.art-note.one{background:#ffe5a8;color:#624b1d}.art-note.two{background:#cbeef3;color:#045077}.art-plus{color:#f0612d}
+.helpbox{background:#fff3e9;border-color:#f7dfce}.helpbox>span{color:#f0612d}.helpbox strong{color:#1e131e}.helpbox p{color:#8a6d5e}.helpbox button{color:#aa3e16}
+.avatar{background:#cbeef3;color:#045077}#presence .avatar{background:#9ececc;color:#1e131e}
+.blank .template-art{background-color:#faf8f5}.brainstorm{background:#fff1e6}.brainstorm i{background:#cbeef3}.brainstorm i:nth-child(2n){background:#ffe2a0}.brainstorm i:nth-child(3n){background:#9ececc}.kanban{background:#edf4f3}.retro{background:#fff2e4}
+.boardpreview{background-color:#f2f1ef}.boardmeta small{color:#847b75}.boardcard,.template{border-color:#e4e0da}.dashfoot{color:#8e847c}.dashfoot span{color:#f0612d}
+#viewport{background-color:#f2f1ef;background-image:radial-gradient(#d6d1cb .85px,transparent .85px)}.toolbar button.chosen{background:#ffede1;color:#b84117}.toolbar button small{color:#9b7a68}
+.outline{border-color:#ddd5ce}.auth-brand{display:flex;align-items:center;gap:18px;color:#1e131e;font-size:28px}.auth-brand img{width:86px;height:auto}.textbtn{color:#b3441a}#authDescription,.authfoot{color:#82766e}
+#toast{background:#1e131e}.palette-title strong{color:#1e131e}.sticky-palette p{color:#8b7d72}#stickyColors button:hover,#stickyColors button:focus-visible{outline-color:#f0612d}
+@media(max-width:760px){.brand .product-name{display:none}.product-by{font-size:0;gap:0}.product-by img{width:43px}.brand{padding-top:4px}.sidebar{padding-left:11px;padding-right:11px}}

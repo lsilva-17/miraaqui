@@ -18,6 +18,18 @@ export function resizedObject(original,delta,corner='se'){
   const west=corner.includes('w'),north=corner.includes('n'),w=Math.max(50,original.w+(west?-delta.x:delta.x)),h=Math.max(35,original.h+(north?-delta.y:delta.y));
   return{...original,w,h,x:west?original.x+original.w-w:original.x,y:north?original.y+original.h-h:original.y};
 }
+export function newConnectedCard(source,point,side,newId){
+  const sameType=['sticky','rect','ellipse','diamond'].includes(source.type);
+  const card={id:newId(),type:sameType?source.type:'sticky',x:0,y:0,w:sameType?source.w:180,h:sameType?source.h:160,text:'Nova ideia',color:sameType?source.color:'#fff0a9',z:Date.now()};
+  card.x=point.x-card.w/2;card.y=point.y-card.h/2;
+  const line={id:newId(),type:'line',x:0,y:0,w:1,h:1,text:'',color:'#839477',from:source.id,to:card.id,fromSide:side,z:Date.now()+1};
+  return{card,line};
+}
+export function emptyNoteCopy(source,id){return{id,type:'sticky',x:source.x,y:source.y,w:source.w,h:source.h,text:'',color:source.color,z:Date.now()}}
+export function newFreeArrow(start,end,id){
+  const x=Math.min(start.x,end.x),y=Math.min(start.y,end.y),w=Math.max(1,Math.abs(end.x-start.x)),h=Math.max(1,Math.abs(end.y-start.y));
+  return{id,type:'line',free:true,x,y,w,h,points:[[start.x,start.y],[end.x,end.y]].map(p=>[(p[0]-x)/w,(p[1]-y)/h]),text:'',color:'#839477',z:Date.now()};
+}
 export function edgePoint(o,target,side){
   const center={x:o.x+o.w/2,y:o.y+o.h/2};
   if(normals[side])return{x:center.x+normals[side].x*o.w/2,y:center.y+normals[side].y*o.h/2};
@@ -27,6 +39,7 @@ export function edgePoint(o,target,side){
   return{x:center.x+dx*ratio,y:center.y+dy*ratio};
 }
 export function connectionGeometry(line,objects){
+  if(line.free){const[start,end]=line.points.map(p=>({x:line.x+p[0]*line.w,y:line.y+p[1]*line.h}));return{start,end,path:`M${start.x} ${start.y} L${end.x} ${end.y}`,points:[start,end]}}
   const a=objects.get(line.from),b=objects.get(line.to);if(!a||!b)return null;
   const ac={x:a.x+a.w/2,y:a.y+a.h/2},bc={x:b.x+b.w/2,y:b.y+b.h/2};
   const curved=!!normals[line.fromSide];

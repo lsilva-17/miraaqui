@@ -31,3 +31,8 @@ dialog{border:1px solid #e2e6da;border-radius:18px;padding:30px;box-shadow:0 22p
 .resize-se{left:calc(100% + var(--selection-pad) - 7px);top:calc(100% + var(--selection-pad) - 7px);cursor:nwse-resize}
 .resize-sw{left:calc(0px - var(--selection-pad) - 7px);top:calc(100% + var(--selection-pad) - 7px);cursor:nesw-resize}
 .object.connection-target{outline-color:#4262ff}#selectionRect{border-color:#4262ff;background:#4262ff16}#groupBounds{border-color:#4262ff}
+.sticky-palette{position:absolute;z-index:35;width:224px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 8px 28px #24302020}
+.palette-title{display:flex;justify-content:space-between;align-items:center;gap:8px}.palette-title strong{font-size:13px}.palette-title button{font-size:20px;padding:0 4px;line-height:1}
+.sticky-palette p{font-size:10px;color:#89937e;margin:8px 0 14px}#stickyColors{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+#stickyColors button{width:30px;height:30px;padding:0;border:1px solid #202b181f;border-radius:5px;background:var(--swatch);box-shadow:0 2px 3px #00000008}
+#stickyColors button:hover{outline:2px solid #4262ff;outline-offset:2px}#stickyColors button:focus-visible{outline:2px solid #4262ff;outline-offset:2px}
