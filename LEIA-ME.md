@@ -55,3 +55,6 @@ Para um backup completo, pare o servidor e copie toda a pasta `data` para um loc
 
 
 O acesso aceita somente e-mails @caaqui.com, com verificação no servidor para cadastro, login e sessões existentes. Convites continuam obrigatórios; ainda não há confirmação de posse da caixa postal por e-mail ou SSO.
+
+
+Durante o arraste, Shift restringe o movimento a intervalos de 30° (incluindo horizontal e vertical), com guia visual do ângulo. Funciona para objetos individuais, seleções de vários objetos, cópias com Alt, criação de setas livres e posicionamento de novos cards a partir das bolinhas. Shift pode ser pressionado e solto durante o gesto. Shift + clique continua alternando a seleção. Conexões ancoradas acompanham seus blocos. Novas setas e traços são pretos; novos blocos e formas são brancos. A paleta de notas mantém as cores escolhidas e Alt copia a cor da nota de origem. Os objetos já salvos não são recoloridos.

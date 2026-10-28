@@ -36,3 +36,5 @@ dialog{border:1px solid #e2e6da;border-radius:18px;padding:30px;box-shadow:0 22p
 .sticky-palette p{font-size:10px;color:#89937e;margin:8px 0 14px}#stickyColors{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
 #stickyColors button{width:30px;height:30px;padding:0;border:1px solid #202b181f;border-radius:5px;background:var(--swatch);box-shadow:0 2px 3px #00000008}
 #stickyColors button:hover{outline:2px solid #4262ff;outline-offset:2px}#stickyColors button:focus-visible{outline:2px solid #4262ff;outline-offset:2px}
+
+#dragGuide{position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:9}#links .selected-line,#ink .selected-line{filter:drop-shadow(0 0 2px #4262ff)}

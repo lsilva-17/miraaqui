@@ -1,4 +1,12 @@
 export function worldPoint(x,y,pan,zoom){return{x:(x-pan.x)/zoom,y:(y-pan.y)/zoom}}
+export const DEFAULT_CARD_COLOR='#ffffff',DEFAULT_LINE_COLOR='#000000';
+export function snapPoint(start,point){
+  const dx=point.x-start.x,dy=point.y-start.y;
+  if(!dx&&!dy)return {...start};
+  const step=Math.PI/6,angle=Math.round(Math.atan2(dy,dx)/step)*step;
+  const c=Math.abs(Math.cos(angle))<1e-12?0:Math.cos(angle),s=Math.abs(Math.sin(angle))<1e-12?0:Math.sin(angle),distance=dx*c+dy*s;
+  return{x:start.x+distance*c,y:start.y+distance*s};
+}
 export function areaBetween(a,b){return{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)}}
 function contains(r,p){return p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h}
 function intersects(a,b){return a.x<=b.x+b.w&&a.x+a.w>=b.x&&a.y<=b.y+b.h&&a.y+a.h>=b.y}
@@ -20,15 +28,15 @@ export function resizedObject(original,delta,corner='se'){
 }
 export function newConnectedCard(source,point,side,newId){
   const sameType=['sticky','rect','ellipse','diamond'].includes(source.type);
-  const card={id:newId(),type:sameType?source.type:'sticky',x:0,y:0,w:sameType?source.w:180,h:sameType?source.h:160,text:'Nova ideia',color:sameType?source.color:'#fff0a9',z:Date.now()};
+  const card={id:newId(),type:sameType?source.type:'sticky',x:0,y:0,w:sameType?source.w:180,h:sameType?source.h:160,text:'Nova ideia',color:DEFAULT_CARD_COLOR,z:Date.now()};
   card.x=point.x-card.w/2;card.y=point.y-card.h/2;
-  const line={id:newId(),type:'line',x:0,y:0,w:1,h:1,text:'',color:'#839477',from:source.id,to:card.id,fromSide:side,z:Date.now()+1};
+  const line={id:newId(),type:'line',x:0,y:0,w:1,h:1,text:'',color:DEFAULT_LINE_COLOR,from:source.id,to:card.id,fromSide:side,z:Date.now()+1};
   return{card,line};
 }
 export function emptyNoteCopy(source,id){return{id,type:'sticky',x:source.x,y:source.y,w:source.w,h:source.h,text:'',color:source.color,z:Date.now()}}
 export function newFreeArrow(start,end,id){
   const x=Math.min(start.x,end.x),y=Math.min(start.y,end.y),w=Math.max(1,Math.abs(end.x-start.x)),h=Math.max(1,Math.abs(end.y-start.y));
-  return{id,type:'line',free:true,x,y,w,h,points:[[start.x,start.y],[end.x,end.y]].map(p=>[(p[0]-x)/w,(p[1]-y)/h]),text:'',color:'#839477',z:Date.now()};
+  return{id,type:'line',free:true,x,y,w,h,points:[[start.x,start.y],[end.x,end.y]].map(p=>[(p[0]-x)/w,(p[1]-y)/h]),text:'',color:DEFAULT_LINE_COLOR,z:Date.now()};
 }
 export function edgePoint(o,target,side){
   const center={x:o.x+o.w/2,y:o.y+o.h/2};

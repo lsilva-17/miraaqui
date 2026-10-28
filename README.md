@@ -37,3 +37,6 @@ Ao selecionar um bloco, nota, texto, imagem ou frame, aparecem quatro bolinhas a
 Não há CRDT, edição offline, SSO, permissões por quadro, recuperação de senha ou histórico de versões. O timer é pessoal. Frames são organizadores visuais e não agrupam automaticamente o movimento das notas. Excluir um quadro é permanente. Faça backups no provedor do banco. Para liberar uso corporativo, confira o plano da Vercel: Hobby é limitado a uso pessoal não comercial.
 
 Credenciais, bancos, arquivos temporários e materiais da empresa que não pertencem ao aplicativo são excluídos do Git e da publicação. `npm test` executa testes locais sem acessar a base da Vercel, salvo se você fornecer explicitamente `DATABASE_URL` ao processo.
+
+
+Durante o arraste, Shift restringe o movimento a intervalos de 30° (incluindo horizontal e vertical), com guia visual do ângulo. Funciona para objetos individuais, seleções de vários objetos, cópias com Alt, criação de setas livres e posicionamento de novos cards a partir das bolinhas. Shift pode ser pressionado e solto durante o gesto. Shift + clique continua alternando a seleção. Conexões ancoradas acompanham seus blocos. Novas setas e traços são pretos; novos blocos e formas são brancos. A paleta de notas mantém as cores escolhidas e Alt copia a cor da nota de origem. Os objetos já salvos não são recoloridos.
