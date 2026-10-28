@@ -100,3 +100,7 @@ Para criar um Frame, escolha F ou o ícone de Frame, clique e arraste sobre o qu
 ### Direção visual dos cursores
 
 Orientação do usuário: referências de Nike, Volvo, Tesla e Apple como critérios de síntese, precisão, equilíbrio e leitura funcional. A autoria visual continua vinculada à Caaqui: Poppins, branco e Licorice, com degradê Giants Orange → Dark Orange → Amber limitado aos acentos. Cursores nativos em SVG de 24 px, base clara, contorno fino e estados familiares, sem brilho excessivo. Essa é uma interpretação de interface proposta para o Miraaqui, sem adotar logos ou afirmar afiliação com as marcas de referência.
+
+### Cursores Aero · Essencial
+
+Direção escolhida pelo usuário: Aero em versão mais sutil. A seleção usa o recorte Aero com mais área clara e menos massa escura; o cursor de mover a tela reaproveita a silhueta exata da mão da barra de ferramentas, com traço reduzido. A família completa permanece em 24 px. A mão aberta é monocromática, e os detalhes em laranja–âmbar ficam restritos aos demais estados. Os pontos de clique e o retorno da mão ao soltar Espaço continuam preservados.

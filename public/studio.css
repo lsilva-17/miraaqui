@@ -1,15 +1,15 @@
 :root{
   --studio-ink:#1e131e;--studio-orange:#f0612d;--studio-orange-soft:#fff0e4;
-  --cursor-select:url('/cursors/select.svg') 4 2,default;
-  --cursor-hand:url('/cursors/hand.svg') 12 12,grab;
-  --cursor-grabbing:url('/cursors/grabbing.svg') 11 13,grabbing;
-  --cursor-point:url('/cursors/point.svg') 10 4,pointer;
-  --cursor-move:url('/cursors/move.svg') 12 12,move;
-  --cursor-cross:url('/cursors/cross.svg') 12 12,crosshair;
-  --cursor-text:url('/cursors/text.svg') 12 12,text;
-  --cursor-pen:url('/cursors/pen.svg') 5 18,crosshair;
-  --cursor-nwse:url('/cursors/resize-nwse.svg') 12 12,nwse-resize;
-  --cursor-nesw:url('/cursors/resize-nesw.svg') 12 12,nesw-resize;
+  --cursor-select:url('/cursors/select.svg?v=aero-essencial-1') 4 2,default;
+  --cursor-hand:url('/cursors/hand.svg?v=aero-essencial-1') 12 12,grab;
+  --cursor-grabbing:url('/cursors/grabbing.svg?v=aero-essencial-1') 12 14,grabbing;
+  --cursor-point:url('/cursors/point.svg?v=aero-essencial-1') 10 4,pointer;
+  --cursor-move:url('/cursors/move.svg?v=aero-essencial-1') 12 12,move;
+  --cursor-cross:url('/cursors/cross.svg?v=aero-essencial-1') 12 12,crosshair;
+  --cursor-text:url('/cursors/text.svg?v=aero-essencial-1') 12 12,text;
+  --cursor-pen:url('/cursors/pen.svg?v=aero-essencial-1') 4 20,crosshair;
+  --cursor-nwse:url('/cursors/resize-nwse.svg?v=aero-essencial-1') 12 12,nwse-resize;
+  --cursor-nesw:url('/cursors/resize-nesw.svg?v=aero-essencial-1') 12 12,nesw-resize;
 }
 body{font-size:13px;-webkit-font-smoothing:antialiased}
 button,input,textarea,select{font-family:Poppins,'Segoe UI',sans-serif}
