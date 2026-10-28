@@ -100,7 +100,7 @@ test('Seta livre preta salva o mesmo ângulo de 30 graus mostrado na prévia',as
 });
 
 test('Ferramentas criam formas brancas e texto escuro por padrão',async()=>{
-  for(const type of ['rect','ellipse','diamond','frame','text']){const app=await ui();app.state.tool=type;app.vp.onpointerdown(pointer(app,500,400,{blank:true}));await app.state.pending;assert.equal([...app.state.objects.values()][0].color,type==='text'?'#1e131e':'#ffffff')}
+  for(const type of ['rect','ellipse','diamond','text']){const app=await ui();app.state.tool=type;app.vp.onpointerdown(pointer(app,500,400,{blank:true}));await app.state.pending;assert.equal([...app.state.objects.values()][0].color,type==='text'?'#1e131e':'#ffffff')}
 });
 
 
@@ -245,4 +245,36 @@ test('Espaço digitado em campo não ativa mão; visualizador também pode mover
 test('Pressionar Espaço durante arraste desfaz a prévia e muda para navegação',async()=>{
   const app=await ui();app.state.objects.set('source',sticky());app.selectObjects(['source']);app.vp.onpointerdown(pointer(app,320,280));app.vp.onpointermove(pointer(app,560,400));assert.equal(app.state.objects.get('source').x,220);
   const key={key:' ',code:'Space',target:{tagName:'DIV',closest(){return null}},preventDefault(){}};app.listeners.get('keydown')(key);assert.equal(app.state.objects.get('source').x,100);app.vp.onpointermove(pointer(app,660,450));assert.equal(app.state.pan.x,200);assert.equal(app.state.pan.y,100);app.listeners.get('keyup')(key);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0);
+});
+
+
+test('Frame só é criado ao soltar o arraste, respeita zoom e desfaz como ação única',async()=>{
+  const app=await ui();app.state.tool='frame';app.vp.onpointerdown(pointer(app,500,400,{blank:true}));assert.equal(app.state.objects.size,0);app.vp.onpointermove(pointer(app,900,650,{blank:true}));assert.equal(app.state.objects.size,0);assert.equal(app.node('#selectionRect').hidden,false);assert.equal(app.node('#selectionRect').style.width,'400px');
+  app.vp.onpointerup(pointer(app,900,650,{blank:true}));await app.state.pending;const frame=[...app.state.objects.values()][0];assert.equal(frame.type,'frame');assert.equal(frame.x,200);assert.equal(frame.y,175);assert.equal(frame.w,200);assert.equal(frame.h,125);assert.equal(app.state.tool,'select');assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);
+  app.undo();await app.state.pending;assert.equal(app.state.objects.size,0);app.redo();await app.state.pending;assert.equal(app.state.objects.get(frame.id).w,200);
+});
+test('Clique, arraste muito curto e cancelamento não deixam frames nem salvamentos',async()=>{
+  for(const action of ['click','short','cancel']){const app=await ui();app.state.tool='frame';app.vp.onpointerdown(pointer(app,500,400,{blank:true}));if(action==='cancel'){app.vp.onpointermove(pointer(app,900,650,{blank:true}));app.finishDrag(true)}else app.vp.onpointerup(pointer(app,action==='short'?504:500,400,{blank:true}));await app.state.pending;assert.equal(app.state.objects.size,0);assert.equal(app.node('#selectionRect').hidden,true);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0)}
+});
+test('Criar frame por cima de elemento bloqueado preserva o elemento e visualizador não cria',async()=>{
+  const app=await ui();app.state.objects.set('source',{...sticky(),locked:true});app.state.tool='frame';app.vp.onpointerdown(pointer(app,320,280));app.vp.onpointermove(pointer(app,800,600,{blank:true}));app.vp.onpointerup(pointer(app,800,600,{blank:true}));await app.state.pending;assert.equal(app.state.objects.size,2);assert.equal(app.state.objects.get('source').x,100);assert.equal(app.state.objects.get('source').locked,true);
+  const viewer=await ui();viewer.state.user={role:'viewer'};viewer.state.tool='frame';viewer.vp.onpointerdown(pointer(viewer,320,280,{blank:true}));viewer.vp.onpointermove(pointer(viewer,800,600,{blank:true}));viewer.vp.onpointerup(pointer(viewer,800,600,{blank:true}));assert.equal(viewer.state.objects.size,0);assert.equal(viewer.requests.filter(r=>r.url.endsWith('/objects')).length,0);
+});
+
+
+test('Ferramenta de linha desenha diretamente sem janela e começa preta, reta e sem pontas',async()=>{
+  const app=await ui();app.tools.find(t=>t.dataset.tool==='line').onclick();assert.equal(app.state.tool,'line');assert.notEqual(app.node('#modal').open,true);
+  app.vp.onpointerdown(pointer(app,400,300,{blank:true}));app.vp.onpointermove(pointer(app,800,550,{blank:true}));app.vp.onpointerup(pointer(app,800,550,{blank:true}));await app.state.pending;const line=[...app.state.objects.values()][0];assert.equal(line.type,'line');assert.equal(line.color,'#000000');assert.equal(line.lineStyle.start,'none');assert.equal(line.lineStyle.end,'none');assert.equal(line.lineStyle.route,'straight');assert.equal(app.node('#lineQuickbar').hidden,false);
+});
+test('Barra rápida aplica estilo, inverte pontas e desfaz sem perder texto ou ancoragem',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());app.state.objects.set('dest',{...sticky(),id:'dest',x:500});const line={id:'quick',type:'line',from:'source',to:'dest',fromSide:'right',toSide:'left',x:0,y:0,w:1,h:1,text:'Depende de',color:'#000000'};app.state.objects.set(line.id,line);app.selectObjects([line.id]);
+  for(const [id,value]of [['lineQuickRoute','elbow'],['lineQuickPattern','dashed'],['lineQuickStart','dot'],['lineQuickEnd','arrow'],['lineQuickWidth','4']])app.node('#'+id).onchange({target:{value}});await app.state.pending;
+  assert.equal(app.state.objects.get('quick').lineStyle.width,4);app.node('#lineQuickWidth').oninput({target:{value:'5'}});await app.state.pending;assert.equal(app.state.objects.get('quick').lineStyle.width,5);assert.equal(app.state.objects.get('quick').from,'source');assert.equal(app.state.objects.get('quick').text,'Depende de');assert.equal(geometry.connectionGeometry(app.state.objects.get('quick'),app.state.objects).points.length,4);
+  app.node('#lineQuickSwap').onclick();await app.state.pending;assert.equal(app.state.objects.get('quick').lineStyle.start,'arrow');assert.equal(app.state.objects.get('quick').lineStyle.end,'dot');app.undo();await app.state.pending;assert.equal(app.state.objects.get('quick').lineStyle.start,'dot');app.redo();await app.state.pending;assert.equal(app.state.objects.get('quick').lineStyle.start,'arrow');
+  app.node('#lineQuickText').onclick();assert.equal(app.node('created-textarea').value,'Depende de');app.finishTextEdit(true);
+});
+test('Barra rápida aceita seleção de várias linhas e respeita visualização e bloqueio',async()=>{
+  const app=await ui();for(const id of ['a','b'])app.state.objects.set(id,geometry.newFreeArrow({x:0,y:0},{x:100,y:50},id));app.selectObjects(['a','b']);app.node('#lineQuickPattern').onchange({target:{value:'dotted'}});await app.state.pending;assert.ok([...app.state.objects.values()].every(o=>o.lineStyle.pattern==='dotted'));
+  app.state.user={role:'viewer'};app.selectObjects(['a','b']);assert.equal(app.node('#lineQuickStart').disabled,true);app.node('#lineQuickStart').onchange({target:{value:'dot'}});await app.state.pending;assert.ok([...app.state.objects.values()].every(o=>!o.lineStyle.start));
+  app.state.user=null;app.state.objects.set('a',{...app.state.objects.get('a'),locked:true});app.selectObjects(['a']);assert.equal(app.node('#lineQuickEnd').disabled,true);
 });

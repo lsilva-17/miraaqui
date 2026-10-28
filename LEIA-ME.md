@@ -87,6 +87,16 @@ Na ferramenta de seleção, clique no elemento para selecionar e clique novament
 
 Selecione um frame ou linha e use “Estilo” na barra inferior ou “Estilo de linha / frame…” no botão direito. Frames permitem cor e opacidade do fundo, cor/espessura/padrão da borda, arredondamento e texto visível ou oculto, dentro ou acima do frame. Os frames ficam atrás das conexões e dos demais elementos.
 
-Ao clicar no ícone de seta, escolha as pontas inicial e final independentemente: sem ponta, seta, bolinha, losango ou quadrado; o traço pode ser contínuo, tracejado ou pontilhado, com espessura de 1 a 12. A escolha é usada nas próximas linhas da sessão, inclusive pelas bolinhas dos cards. Linhas existentes podem ser alteradas individualmente ou em grupo e mantêm texto e estilo ao reconectar. A cor inicial continua preta.
+Ao clicar no ícone de linha ou pressionar L, arraste diretamente no quadro, sem abrir janela. Novas linhas são retas, contínuas, pretas e sem pontas. Ao selecionar uma ou várias linhas, a barra inferior traz ajustes imediatos de cor, forma (reta, angular ou curva), traçado, espessura de 1 a 12 e pontas independentes (nenhuma, seta, bolinha, losango ou quadrado). Também é possível inverter pontas e editar o texto. Cada ajuste pode ser desfeito/refeito, sem alterar o padrão das próximas linhas. Linhas anteriores mantêm sua aparência até serem editadas.
 
 Segure Espaço para usar a mão temporariamente e arraste em qualquer parte do quadro, inclusive sobre elementos ou o roadmap. O cursor muda para mão e a ferramenta fica destacada enquanto a tecla estiver pressionada. Ao soltar Espaço, o movimento temporário para e a ferramenta anterior retorna. Digitar espaços em campos de texto continua funcionando normalmente. Se a tecla for pressionada durante um arraste de objeto, a prévia é cancelada antes de mover a tela.
+
+## Ferramentas e cursores
+
+A interface usa ícones vetoriais de traço uniforme, Poppins e a paleta Caaqui. Os cursores de seleção, mão aberta/fechada, movimento, desenho, texto e redimensionamento têm 24 px, contorno claro e pontos de clique ajustados. Os atalhos permanecem disponíveis e a ferramenta ativa é indicada visualmente e por aria-pressed.
+
+Para criar um Frame, escolha F ou o ícone de Frame, clique e arraste sobre o quadro. A prévia mostra a área; soltar cria o frame com o tamanho desenhado, respeitando um mínimo de 50 × 35 unidades. Funciona em qualquer direção e com zoom. Um clique sem arrastar não cria um frame; Escape cancela, e desfazer/refazer trata a criação como uma ação única. Elementos existentes dentro da área são preservados.
+
+### Direção visual dos cursores
+
+Orientação do usuário: referências de Nike, Volvo, Tesla e Apple como critérios de síntese, precisão, equilíbrio e leitura funcional. A autoria visual continua vinculada à Caaqui: Poppins, branco e Licorice, com degradê Giants Orange → Dark Orange → Amber limitado aos acentos. Cursores nativos em SVG de 24 px, base clara, contorno fino e estados familiares, sem brilho excessivo. Essa é uma interpretação de interface proposta para o Miraaqui, sem adotar logos ou afirmar afiliação com as marcas de referência.

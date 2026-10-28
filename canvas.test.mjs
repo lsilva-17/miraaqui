@@ -2,7 +2,7 @@ import {arrangeChanges,groupChanges,ungroupChanges,expandGroups,elementLocked,pr
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {lineFormat,lineAttributes,frameCss,appearanceChanges} from './public/element-properties.js';
-import {areaBetween,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,connectionAttachment,moveEndpoint,translateObject} from './public/canvas-geometry.js';
+import {areaBetween,newFrameFromDrag,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,connectionAttachment,moveEndpoint,translateObject} from './public/canvas-geometry.js';
 const a={id:'a',type:'sticky',x:100,y:100,w:100,h:80},b={id:'b',type:'rect',x:350,y:100,w:120,h:80},frame={id:'f',type:'frame',x:50,y:50,w:500,h:400};
 test('Seleção funciona em ambas as direções e ignora o frame externo',()=>{const objects=new Map([a,b,frame].map(o=>[o.id,o]));assert.deepEqual(selectionInArea(objects,areaBetween({x:480,y:190},{x:90,y:90})),['a','b']);assert.deepEqual(selectionInArea(objects,{x:0,y:0,w:600,h:500}),['a','b','f']);assert.deepEqual(selectionInArea(objects,{x:201,y:181,w:40,h:20}),[])});
 test('Conversão de coordenadas respeita deslocamento e zoom',()=>{assert.deepEqual(worldPoint(450,220,{x:150,y:20},2),{x:150,y:100});assert.deepEqual(worldPoint(75,30,{x:-25,y:-20},.5),{x:200,y:100})});
@@ -80,7 +80,22 @@ test('Ímã permite âncoras livres e solta a conexão fora da proximidade',()=>
 
 
 test('Pontas e traçados são independentes e estilos rejeitam CSS e valores inválidos',()=>{
-  assert.deepEqual(lineFormat({}),{start:'none',end:'arrow',pattern:'solid',width:2});assert.doesNotMatch(lineAttributes({lineStyle:{start:'none',end:'none'}}),/marker-/);assert.match(lineAttributes({lineStyle:{start:'dot',end:'arrow',pattern:'dotted',width:3}}),/stroke-dasharray="0 9"/);
+  assert.deepEqual(lineFormat({}),{start:'none',end:'arrow',pattern:'solid',width:2,route:'straight'});assert.doesNotMatch(lineAttributes({lineStyle:{start:'none',end:'none'}}),/marker-/);assert.match(lineAttributes({lineStyle:{start:'dot',end:'arrow',pattern:'dotted',width:3}}),/stroke-dasharray="0 9"/);
   for(const object of [{type:'line',lineStyle:{start:'url(evil)'}},{type:'line',lineStyle:{pattern:'x'}},{type:'line',lineStyle:{width:99}},{type:'frame',frameStyle:{opacity:101}},{type:'frame',frameStyle:{strokeColor:'red;display:none'}},{type:'frame',frameStyle:{showText:'false'}},{type:'sticky',frameStyle:{opacity:0}}])assert.ok(propertyError(object));
   assert.match(frameCss({color:'#ffffff',frameStyle:{opacity:35,pattern:'solid',strokeColor:'#f0612d'}}),/rgba\(255,255,255,0.35\)/);
+});
+
+
+test('Frame nasce na área arrastada em qualquer direção e mantém dimensões mínimas',()=>{
+  for(const end of [{x:450,y:380},{x:-50,y:380},{x:450,y:-80},{x:-50,y:-80}]){const start={x:100,y:100},frame=newFrameFromDrag(start,end,'f');assert.equal(frame.x,Math.min(start.x,end.x));assert.equal(frame.y,Math.min(start.y,end.y));assert.equal(frame.w,Math.abs(end.x-start.x));assert.equal(frame.h,Math.abs(end.y-start.y));assert.equal(frame.color,'#ffffff');assert.equal(frame.type,'frame')}
+  const small=newFrameFromDrag({x:100,y:100},{x:99,y:98},'f');assert.equal(small.x,50);assert.equal(small.y,65);assert.equal(small.w,50);assert.equal(small.h,35);
+});
+
+
+test('Formas reta, angular e curva preservam âncoras e seleção usa o trajeto real',()=>{
+  const objects=new Map([[a.id,a],[b.id,b]]),base={id:'route',type:'line',from:'a',to:'b',fromSide:'right',toSide:'left',fromAnchor:{x:1,y:.4},toAnchor:{x:0,y:.7},x:0,y:0,w:1,h:1,color:'#000000'};
+  const old=connectionGeometry(base,objects);assert.match(old.path,/ C/);
+  for(const route of ['straight','elbow','curved']){const line={...base,lineStyle:{route}},g=connectionGeometry(line,objects);assert.deepEqual(g.start,old.start);assert.deepEqual(g.end,old.end);assert.ok(g.points.length>=2);assert.match(g.path,route==='curved'?/ C/:/ L/);if(route==='elbow')assert.equal(g.points.length,4);if(route==='straight')assert.equal(g.points.length,2)}
+  const free=newFreeArrow({x:0,y:0},{x:200,y:100},'free');assert.match(connectionGeometry({...free,lineStyle:{route:'curved'}},new Map()).path,/ C/);const elbow={...free,lineStyle:{route:'elbow'}},map=new Map([[elbow.id,elbow]]);assert.deepEqual(selectionInArea(map,{x:97,y:40,w:6,h:10}),['free']);assert.deepEqual(selectionInArea(map,{x:10,y:40,w:5,h:5}),[]);
+  assert.ok(propertyError({type:'line',lineStyle:{route:'not-a-route'}}));
 });

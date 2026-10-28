@@ -9,6 +9,7 @@ export function snapPoint(start,point){
   return{x:start.x+distance*c,y:start.y+distance*s};
 }
 export function areaBetween(a,b){return{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)}}
+export function newFrameFromDrag(start,end,id){const w=Math.max(50,Math.abs(end.x-start.x)),h=Math.max(35,Math.abs(end.y-start.y));return{id,type:'frame',x:end.x<start.x?start.x-w:start.x,y:end.y<start.y?start.y-h:start.y,w,h,text:'Novo frame',color:DEFAULT_CARD_COLOR,z:Date.now()}}
 function contains(r,p){return p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h}
 function intersects(a,b){return a.x<=b.x+b.w&&a.x+a.w>=b.x&&a.y<=b.y+b.h&&a.y+a.h>=b.y}
 export function segmentInArea(a,b,r){
@@ -49,14 +50,27 @@ export function edgePoint(o,target,side,anchor){
   return{x:center.x+dx*ratio,y:center.y+dy*ratio};
 }
 export function connectionGeometry(line,objects){
-  if(line.free){const[start,end]=line.points.map(p=>({x:line.x+p[0]*line.w,y:line.y+p[1]*line.h}));return{start,end,path:`M${start.x} ${start.y} L${end.x} ${end.y}`,points:[start,end]}}
+  if(line.free){const[start,end]=line.points.map(p=>({x:line.x+p[0]*line.w,y:line.y+p[1]*line.h}));return routedLine(start,end,line.lineStyle?.route||'straight')}
   const a=objects.get(line.from),b=objects.get(line.to),ac=a?{x:a.x+a.w/2,y:a.y+a.h/2}:line.fromPoint,bc=b?{x:b.x+b.w/2,y:b.y+b.h/2}:line.toPoint;if(!ac||!bc)return null;
   const curved=!!(a&&normals[line.fromSide]||b&&normals[line.toSide]);let toSide=normals[line.toSide]?line.toSide:null;
   if(curved&&b&&!toSide){const dx=ac.x-bc.x,dy=ac.y-bc.y;toSide=Math.abs(dx)/(b.w/2)>=Math.abs(dy)/(b.h/2)?dx<0?'left':'right':dy<0?'top':'bottom'}
   const start=a?edgePoint(a,bc,line.fromSide,line.fromAnchor):ac,end=b?edgePoint(b,ac,toSide,line.toAnchor):bc;
+  if(line.lineStyle?.route)return routedLine(start,end,line.lineStyle.route,a&&normals[line.fromSide],b&&normals[toSide]);
   if(!curved)return{start,end,path:`M${start.x} ${start.y} L${end.x} ${end.y}`,points:[start,end]};
   const distance=Math.max(45,Math.min(180,Math.hypot(end.x-start.x,end.y-start.y)/2)),length=Math.hypot(end.x-start.x,end.y-start.y)||1;
   const direction={x:(end.x-start.x)/length,y:(end.y-start.y)/length},n1=a&&normals[line.fromSide]||direction,n2=b&&normals[toSide]||{x:-direction.x,y:-direction.y};
+  const c1={x:start.x+n1.x*distance,y:start.y+n1.y*distance},c2={x:end.x+n2.x*distance,y:end.y+n2.y*distance};
+  const points=Array.from({length:25},(_,i)=>{const t=i/24,u=1-t;return{x:u**3*start.x+3*u*u*t*c1.x+3*u*t*t*c2.x+t**3*end.x,y:u**3*start.y+3*u*u*t*c1.y+3*u*t*t*c2.y+t**3*end.y}});
+  return{start,end,c1,c2,points,path:`M${start.x} ${start.y} C${c1.x} ${c1.y} ${c2.x} ${c2.y} ${end.x} ${end.y}`};
+}
+function routedLine(start,end,route,n1,n2){
+  if(route==='straight')return{start,end,path:`M${start.x} ${start.y} L${end.x} ${end.y}`,points:[start,end]};
+  if(route==='elbow'){
+    const middle={x:(start.x+end.x)/2,y:(start.y+end.y)/2},vertical=!!n1?.y,points=vertical?[start,{x:start.x,y:middle.y},{x:end.x,y:middle.y},end]:[start,{x:middle.x,y:start.y},{x:middle.x,y:end.y},end];
+    return{start,end,points,path:points.map((p,i)=>(i?'L':'M')+p.x+' '+p.y).join(' ')};
+  }
+  const distance=Math.max(45,Math.min(180,Math.hypot(end.x-start.x,end.y-start.y)/2)),sign=end.x>=start.x?1:-1;
+  n1=n1||{x:sign,y:0};n2=n2||{x:-sign,y:0};
   const c1={x:start.x+n1.x*distance,y:start.y+n1.y*distance},c2={x:end.x+n2.x*distance,y:end.y+n2.y*distance};
   const points=Array.from({length:25},(_,i)=>{const t=i/24,u=1-t;return{x:u**3*start.x+3*u*u*t*c1.x+3*u*t*t*c2.x+t**3*end.x,y:u**3*start.y+3*u*u*t*c1.y+3*u*t*t*c2.y+t**3*end.y}});
   return{start,end,c1,c2,points,path:`M${start.x} ${start.y} C${c1.x} ${c1.y} ${c2.x} ${c2.y} ${end.x} ${end.y}`};

@@ -2,7 +2,7 @@ export const TEXT_FONTS=['Poppins','Arial','Georgia','monospace'];
 export const TEXT_TYPES=['sticky','rect','ellipse','diamond','text','frame','line'];
 export const LINE_ENDINGS=[['none','Sem ponta'],['arrow','Seta'],['dot','Bolinha'],['diamond','Losango'],['square','Quadrado']];
 export const STROKE_PATTERNS=[['solid','Contínuo'],['dashed','Tracejado'],['dotted','Pontilhado']];
-export function lineFormat(o){return {start:'none',end:'arrow',pattern:'solid',width:2,...o.lineStyle}}
+export function lineFormat(o){return {start:'none',end:'arrow',pattern:'solid',width:2,route:!o.free&&(o.fromSide||o.toSide)?'curved':'straight',...o.lineStyle}}
 export function lineMarkerDefs(){return '<defs>'+[['arrow','<path d="M0 0 L10 5 L0 10z"/>'],['dot','<circle cx="5" cy="5" r="4"/>'],['diamond','<path d="M0 5 L5 0 L10 5 L5 10z"/>'],['square','<rect x="1" y="1" width="8" height="8"/>']].map(([id,shape])=>'<marker id="'+id+'" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" fill="context-stroke">'+shape+'</marker>').join('')+'</defs>'}
 export function frameFormat(o){return {strokeColor:'#9ca994',strokeWidth:2,pattern:'dashed',opacity:0,radius:12,showText:true,labelPosition:'outside',...o.frameStyle}}
 export function lineAttributes(o){const style=lineFormat(o),dash=style.pattern==='dashed'?`${style.width*4} ${style.width*3}`:style.pattern==='dotted'?`0 ${style.width*3}`:'';return `stroke-width="${style.width}" stroke-linecap="round"${dash?` stroke-dasharray="${dash}"`:''}${style.start!=='none'?` marker-start="url(#${style.start})"`:''}${style.end!=='none'?` marker-end="url(#${style.end})"`:''}`}
@@ -12,7 +12,8 @@ export function textFormat(o){return {fontFamily:'Poppins',fontSize:o.type==='te
 export function textCss(o){const s=textFormat(o);return `font-family:${TEXT_FONTS.includes(s.fontFamily)?s.fontFamily:'Poppins'};font-size:${Number(s.fontSize)||17}px;font-weight:${s.bold?700:400};font-style:${s.italic?'italic':'normal'};text-decoration:${s.underline?'underline':'none'};text-align:${['left','center','right'].includes(s.align)?s.align:'left'};color:${/^#[a-f\d]{6}$/i.test(s.color)?s.color:'#1e131e'};`}
 export function propertyError(o){
   if(o.lineStyle!==undefined){
-    const s=o.lineStyle;if(o.type!=='line'||!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(key=>!['start','end','pattern','width'].includes(key)))return 'Estilo de linha inválido.';
+    const s=o.lineStyle;if(o.type!=='line'||!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(key=>!['start','end','pattern','width','route'].includes(key)))return 'Estilo de linha inválido.';
+    if(s.route!==undefined&&!['straight','curved','elbow'].includes(s.route))return 'Tipo de linha inválido.';
     for(const key of ['start','end'])if(s[key]!==undefined&&!LINE_ENDINGS.some(([value])=>value===s[key]))return 'Ponta da linha inválida.';
     if(s.pattern!==undefined&&!STROKE_PATTERNS.some(([value])=>value===s.pattern)||s.width!==undefined&&(!Number.isFinite(s.width)||s.width<1||s.width>12))return 'Traçado inválido.';
   }
