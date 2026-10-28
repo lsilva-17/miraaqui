@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {newRoadmap} from './public/roadmap.js';
 import {spawn} from 'node:child_process';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -54,6 +55,8 @@ assert.equal((await owner('/boards/'+board)).data.objects.find(o=>o.id===second.
 assert.equal((await member('/boards/'+board+'/objects',{changes:[{id:sticky.id,object:{...locked,locked:false}}]},'PATCH')).status,200);
 assert.equal((await member('/boards/'+board+'/objects',{changes:[{id:sticky.id,object:{...formatted,x:80}}]},'PATCH')).status,200);
 const dangling={id:'dangling',type:'line',from:sticky.id,fromSide:'top',fromAnchor:{x:.3,y:0},toPoint:{x:700,y:400},color:'#000000',x:0,y:0,w:1,h:1};assert.equal((await owner('/boards/'+board+'/objects',{changes:[{id:dangling.id,object:dangling}]},'PATCH')).status,200);assert.equal((await owner('/boards/'+board+'/objects',{changes:[{id:dangling.id,object:{...dangling,fromAnchor:{x:99,y:0}}}]},'PATCH')).status,400);await owner('/boards/'+board+'/objects',{changes:[{id:dangling.id,object:null}]},'PATCH');
+assert.equal((await fetch(base+'/roadmap.js')).status,200);
+const roadmap=newRoadmap('roadmap-test',new Date(2026,9,28));assert.equal((await owner('/boards/'+board+'/objects',{changes:[{id:roadmap.id,object:roadmap}]},'PATCH')).status,200);assert.equal((await member('/boards/'+board)).data.objects.find(o=>o.id===roadmap.id).roadmap.tasks[0].progress,100);assert.equal((await owner('/boards/'+board+'/objects',{changes:[{id:roadmap.id,object:{...roadmap,roadmap:{...roadmap.roadmap,tasks:[{...roadmap.roadmap.tasks[0],end:'1900-01-01'}]}}}]},'PATCH')).status,400);await owner('/boards/'+board+'/objects',{changes:[{id:roadmap.id,object:null}]},'PATCH');
 assert.equal((await owner('/boards',{title:'Ataque'},'POST',{Origin:'http://outro.test'})).status,403);
 assert.equal((await member('/boards/'+board+'/comments',{text:'Vamos testar esta ideia.'})).status,200);assert.equal((await owner('/boards/'+board)).data.comments.length,1);
 await stop();await start();assert.equal((await owner('/boards/'+board)).data.objects.find(o=>o.id===sticky.id).textStyle.fontSize,28);assert.equal((await owner('/boards/'+board)).data.objects.length,2);assert.equal((await owner('/boards/'+board)).data.comments.length,1);

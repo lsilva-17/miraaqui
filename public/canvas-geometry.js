@@ -24,7 +24,7 @@ export function looseConnectionPath(o,point,side='right'){
   return `M${start.x} ${start.y} C${start.x+normal.x*distance} ${start.y+normal.y*distance} ${point.x-normal.x*distance} ${point.y-normal.y*distance} ${point.x} ${point.y}`;
 }
 export function resizedObject(original,delta,corner='se'){
-  const west=corner.includes('w'),north=corner.includes('n'),w=Math.max(50,original.w+(west?-delta.x:delta.x)),h=Math.max(35,original.h+(north?-delta.y:delta.y));
+  const west=corner.includes('w'),north=corner.includes('n'),w=Math.max(original.type==='roadmap'?700:50,original.w+(west?-delta.x:delta.x)),h=Math.max(original.type==='roadmap'?250:35,original.h+(north?-delta.y:delta.y));
   return{...original,w,h,x:west?original.x+original.w-w:original.x,y:north?original.y+original.h-h:original.y};
 }
 export function newConnectedCard(source,point,side,newId){

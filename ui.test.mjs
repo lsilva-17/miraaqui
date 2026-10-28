@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import * as geometry from './public/canvas-geometry.js';
 import * as properties from './public/element-properties.js';
+import * as roadmap from './public/roadmap.js';
 
 // Run the real UI handlers with a minimal DOM and an in-memory save endpoint.
 // This covers gestures and undo without browser input limitations or production data.
@@ -19,10 +20,10 @@ async function ui(){
   const colors=Array.from({length:10},(_,i)=>Object.assign(node('color-'+i),{dataset:{noteColor:i===0?'#fff0a9':'#c9e8ff'}}));
   const document={querySelector:node,querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:[],
     elementsFromPoint(){return []},elementFromPoint(){return {closest(){return null}}},getElementById(id){return node(id)},addEventListener(type,fn){listeners.set(type,fn)},documentElement:node('root')};
-  const context=vm.createContext({...geometry,...properties,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
+  const context=vm.createContext({...geometry,...properties,...roadmap,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
     structuredClone,setTimeout,clearTimeout,console,fetch:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({})}}});
   const source=(await readFile(new URL('./public/app.js',import.meta.url),'utf8')).replace(/^import[^\n]+\n/,'').replace(/init\(\);\s*$/,'');
-  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,nodes:null};',context);
+  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,template,saveRoadmap,nodes:null};',context);
   const app=context.ui;app.state.board={id:'fixture'};app.state.pan={x:100,y:50};app.state.zoom=2;
   const target={dataset:{id:'source'},closest:s=>s==='[data-id]'?target:null};
   const event=(x,y,alt=true)=>({button:0,pointerId:1,clientX:x,clientY:y,altKey:alt,target,preventDefault(){}});
@@ -195,4 +196,13 @@ test('Criar ligação reconhece bolinha externa do destino sem criar card extra'
   const object={dataset:{id:'source'}},handle={dataset:{side:'right'}},target={closest:s=>s==='[data-id]'?object:s==='.connection-handle'?handle:null};
   app.vp.onpointerdown({...pointer(app,698,410),target});app.vp.onpointermove(pointer(app,1057,415));app.vp.onpointerup(pointer(app,1057,415));await app.state.pending;
   assert.equal(app.state.objects.size,3);const line=[...app.state.objects.values()].find(o=>o.type==='line');assert.equal(line.from,'source');assert.equal(line.to,'dest');assert.equal(line.toSide,'left');assert.deepEqual(JSON.parse(JSON.stringify(line.toAnchor)),{x:0,y:.5});assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);
+});
+
+
+test('Template Roadmap salva datas e progresso, muda escala e desfaz a alteração inteira',async()=>{
+  const app=await ui(),objects=app.template('roadmap');assert.equal(objects.length,1);const object=objects[0];assert.equal(object.type,'roadmap');app.state.objects.set(object.id,object);
+  const value=structuredClone(object.roadmap);value.view='quarter';value.tasks[0].start='2026-01-01';value.tasks[0].end='2026-06-30';value.tasks[0].progress=37;
+  await app.saveRoadmap(object.id,'Plano de produto',value);const saved=app.state.objects.get(object.id);assert.equal(saved.text,'Plano de produto');assert.equal(saved.roadmap.view,'quarter');assert.equal(saved.roadmap.tasks[0].progress,37);
+  assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);app.undo();await app.state.pending;assert.equal(app.state.objects.get(object.id).roadmap.view,'month');app.redo();await app.state.pending;assert.equal(app.state.objects.get(object.id).roadmap.tasks[0].progress,37);
+  app.state.user={role:'viewer'};await assert.rejects(app.saveRoadmap(object.id,'Tentativa',value),/não pode/);assert.equal(app.state.objects.get(object.id).text,'Plano de produto');
 });

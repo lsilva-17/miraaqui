@@ -7,6 +7,7 @@ import path from 'node:path';
 import {database} from './lib/database.mjs';
 import {allowedEmail} from './lib/access-policy.mjs';
 import {memberPublic,memberUpdate} from './lib/member-policy.mjs';
+import {roadmapError} from './public/roadmap.js';
 import {propertyError,elementLocked} from './public/element-properties.js';
 const scrypt=promisify(rawScrypt),root=path.dirname(fileURLToPath(import.meta.url));
 const id=()=>randomBytes(16).toString('hex'),digest=s=>createHash('sha256').update(s).digest('hex');
@@ -22,8 +23,8 @@ async function session(db,res,user){const token=id()+id();await db.query('INSERT
 const eventStatement=(board,event)=>['INSERT INTO events(board_id,payload,created) VALUES(?,?,?)',[board,JSON.stringify(event),Date.now()]];
 async function org(db){return(await db.one("SELECT value FROM settings WHERE key='org'"))?.value||'Minha companhia'}
 function validateObject(o){
-  const error=propertyError(o||{});if(error)status(400,error);
-  if(!o||!['sticky','rect','ellipse','diamond','text','frame','line','pen','image'].includes(o.type))status(400,'Objeto inválido.');
+  const error=propertyError(o||{});if(error)status(400,error);if(o?.type==='roadmap'){const roadmapIssue=roadmapError(o.roadmap);if(roadmapIssue)status(400,roadmapIssue)}
+  if(!o||!['sticky','rect','ellipse','diamond','text','frame','line','pen','image','roadmap'].includes(o.type))status(400,'Objeto inválido.');
   if(o.text!==undefined&&(typeof o.text!=='string'||o.text.length>20000))status(400,'Texto inválido.');
   for(const k of ['x','y','w','h'])if(typeof o[k]!=='number'||!Number.isFinite(o[k])||Math.abs(o[k])>1e7)status(400,'Posição inválida.');
   if(o.w<=0||o.h<=0)status(400,'Dimensões inválidas.');
@@ -63,7 +64,7 @@ export async function handler(req,res){
   const url=new URL(req.url,'http://localhost'),p=url.pathname,method=req.method;
   const send=(v,code=200)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(v))};
   try{
-    if(!p.startsWith('/api/')){const file={'/':'index.html','/app.js':'app.js','/canvas-geometry.js':'canvas-geometry.js','/element-properties.js':'element-properties.js','/style.css':'style.css','/caaqui.css':'caaqui.css','/brand/caaqui-logo.png':'brand/caaqui-logo.png','/brand/caaqui-symbol.png':'brand/caaqui-symbol.png','/favicon.svg':'favicon.svg','/favicon.ico':'favicon.ico','/favicon-32.png':'favicon-32.png','/apple-touch-icon.png':'apple-touch-icon.png'}[p]||(/^\/fonts\/poppins-(400|500|600|700)\.ttf$/.test(p)?p.slice(1):null);if(!file)status(404,'Não encontrado.');res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.png')?'image/png':file.endsWith('.svg')?'image/svg+xml':file.endsWith('.ico')?'image/x-icon':file.endsWith('.ttf')?'font/ttf':'text/html; charset=utf-8');res.end(await readFile(path.join(root,'public',file)));return}
+    if(!p.startsWith('/api/')){const file={'/':'index.html','/app.js':'app.js','/roadmap.js':'roadmap.js','/canvas-geometry.js':'canvas-geometry.js','/element-properties.js':'element-properties.js','/style.css':'style.css','/caaqui.css':'caaqui.css','/brand/caaqui-logo.png':'brand/caaqui-logo.png','/brand/caaqui-symbol.png':'brand/caaqui-symbol.png','/favicon.svg':'favicon.svg','/favicon.ico':'favicon.ico','/favicon-32.png':'favicon-32.png','/apple-touch-icon.png':'apple-touch-icon.png'}[p]||(/^\/fonts\/poppins-(400|500|600|700)\.ttf$/.test(p)?p.slice(1):null);if(!file)status(404,'Não encontrado.');res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.png')?'image/png':file.endsWith('.svg')?'image/svg+xml':file.endsWith('.ico')?'image/x-icon':file.endsWith('.ttf')?'font/ttf':'text/html; charset=utf-8');res.end(await readFile(path.join(root,'public',file)));return}
     if(!['GET','HEAD'].includes(method)&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)status(403,'Origem inválida.');
     const db=await database();
     if(p==='/api/status'&&method==='GET')return send({setup:!await db.one('SELECT id FROM users LIMIT 1'),org:await org(db)});
