@@ -18,7 +18,7 @@ async function ui(){
   };
   const tools=['select','hand','sticky','text','rect','ellipse','diamond','line','pen','frame'].map(tool=>Object.assign(node('tool-'+tool),{dataset:{tool}}));
   const colors=Array.from({length:10},(_,i)=>Object.assign(node('color-'+i),{dataset:{noteColor:i===0?'#fff0a9':'#c9e8ff'}}));
-  const document={createElement:tag=>node('created-'+tag),querySelector:node,querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:[],
+  const document={createElement:tag=>node('created-'+tag),querySelector:selector=>selector==='dialog[open]'?null:node(selector),querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:[],
     elementsFromPoint(){return []},elementFromPoint(){return {closest(){return null}}},getElementById(id){return node(id)},addEventListener(type,fn){listeners.set(type,fn)},documentElement:node('root')};
   const context=vm.createContext({...geometry,...properties,...roadmap,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
     structuredClone,setTimeout,clearTimeout,console,fetch:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({})}}});
@@ -230,4 +230,19 @@ test('Edição inline do roadmap muda apenas a atividade escolhida e remove perc
   const values={'[data-inline-title]':'Atividade no quadro','[data-inline-start]':'2026-10-01','[data-inline-end]':'2026-11-15','[data-inline-status]':'in_progress'},form={dataset:{inlineRoadmap:object.id,inlineTask:object.roadmap.tasks[0].id},querySelector:s=>({value:values[s]})};
   await app.saveInlineRoadmap(form);const saved=app.state.objects.get(object.id);assert.equal(saved.roadmap.tasks[0].title,'Atividade no quadro');assert.equal(saved.roadmap.tasks[0].status,'in_progress');assert.equal(saved.roadmap.tasks[0].progress,undefined);assert.equal(saved.roadmap.tasks[1].title,object.roadmap.tasks[1].title);
   app.state.user={role:'viewer'};await assert.rejects(app.saveInlineRoadmap(form),/não pode/);
+});
+
+
+test('Espaço ativa mão temporária, move só a tela e restaura a ferramenta ao soltar',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());app.state.tool='rect';const key={key:' ',code:'Space',target:{tagName:'DIV',closest(){return null}},preventDefault(){}};
+  app.listeners.get('keydown')(key);assert.equal(app.vp.style.cursor,'grab');app.vp.onpointerdown(pointer(app,320,280));assert.equal(app.vp.style.cursor,'grabbing');app.vp.onpointermove(pointer(app,560,400));assert.equal(app.state.pan.x,340);assert.equal(app.state.pan.y,170);assert.equal(app.state.objects.get('source').x,100);
+  app.listeners.get('keydown')({...key,repeat:true});app.vp.onpointermove(pointer(app,800,600));assert.equal(app.state.pan.x,580);app.listeners.get('keyup')(key);assert.equal(app.vp.style.cursor,'crosshair');assert.equal(app.state.tool,'rect');app.vp.onpointermove(pointer(app,900,650));assert.equal(app.state.pan.x,580);app.vp.onpointerup(pointer(app,900,650));assert.equal(app.state.objects.size,1);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0);
+});
+test('Espaço digitado em campo não ativa mão; visualizador também pode mover a tela',async()=>{
+  const app=await ui();app.state.tool='select';let prevented=false;const key={key:' ',code:'Space',target:{tagName:'TEXTAREA',closest(){return null}},preventDefault(){prevented=true}};app.listeners.get('keydown')(key);assert.equal(prevented,false);
+  app.state.user={role:'viewer'};app.listeners.get('keydown')({...key,target:{tagName:'DIV',closest(){return null}}});assert.equal(app.vp.style.cursor,'grab');app.vp.onpointerdown(pointer(app,300,250));app.vp.onpointermove(pointer(app,400,300));app.vp.onpointerup(pointer(app,400,300));assert.equal(app.state.pan.x,200);app.listeners.get('keyup')(key);assert.equal(app.vp.style.cursor,'default');
+});
+test('Pressionar Espaço durante arraste desfaz a prévia e muda para navegação',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());app.selectObjects(['source']);app.vp.onpointerdown(pointer(app,320,280));app.vp.onpointermove(pointer(app,560,400));assert.equal(app.state.objects.get('source').x,220);
+  const key={key:' ',code:'Space',target:{tagName:'DIV',closest(){return null}},preventDefault(){}};app.listeners.get('keydown')(key);assert.equal(app.state.objects.get('source').x,100);app.vp.onpointermove(pointer(app,660,450));assert.equal(app.state.pan.x,200);assert.equal(app.state.pan.y,100);app.listeners.get('keyup')(key);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0);
 });
