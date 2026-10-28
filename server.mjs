@@ -1,11 +1,12 @@
 import http from 'node:http';
 import {randomBytes,scrypt as rawScrypt,timingSafeEqual,createHash} from 'node:crypto';
-import {promisify} from 'node:util';
+import {promisify,isDeepStrictEqual} from 'node:util';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {database} from './lib/database.mjs';
 import {allowedEmail} from './lib/access-policy.mjs';
+import {propertyError,elementLocked} from './public/element-properties.js';
 const scrypt=promisify(rawScrypt),root=path.dirname(fileURLToPath(import.meta.url));
 const id=()=>randomBytes(16).toString('hex'),digest=s=>createHash('sha256').update(s).digest('hex');
 const safeUser=u=>({id:u.id,email:u.email,name:u.name,admin:!!u.admin});
@@ -20,6 +21,7 @@ async function session(db,res,user){const token=id()+id();await db.query('INSERT
 const eventStatement=(board,event)=>['INSERT INTO events(board_id,payload,created) VALUES(?,?,?)',[board,JSON.stringify(event),Date.now()]];
 async function org(db){return(await db.one("SELECT value FROM settings WHERE key='org'"))?.value||'Minha companhia'}
 function validateObject(o){
+  const error=propertyError(o||{});if(error)status(400,error);
   if(!o||!['sticky','rect','ellipse','diamond','text','frame','line','pen','image'].includes(o.type))status(400,'Objeto inválido.');
   if(o.text!==undefined&&(typeof o.text!=='string'||o.text.length>20000))status(400,'Texto inválido.');
   for(const k of ['x','y','w','h'])if(typeof o[k]!=='number'||!Number.isFinite(o[k])||Math.abs(o[k])>1e7)status(400,'Posição inválida.');
@@ -53,7 +55,7 @@ export async function handler(req,res){
   const url=new URL(req.url,'http://localhost'),p=url.pathname,method=req.method;
   const send=(v,code=200)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(v))};
   try{
-    if(!p.startsWith('/api/')){const file={'/':'index.html','/app.js':'app.js','/canvas-geometry.js':'canvas-geometry.js','/style.css':'style.css','/caaqui.css':'caaqui.css','/brand/caaqui-logo.png':'brand/caaqui-logo.png','/brand/caaqui-symbol.png':'brand/caaqui-symbol.png','/favicon.svg':'favicon.svg','/favicon.ico':'favicon.ico','/favicon-32.png':'favicon-32.png','/apple-touch-icon.png':'apple-touch-icon.png'}[p]||(/^\/fonts\/poppins-(400|500|600|700)\.ttf$/.test(p)?p.slice(1):null);if(!file)status(404,'Não encontrado.');res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.png')?'image/png':file.endsWith('.svg')?'image/svg+xml':file.endsWith('.ico')?'image/x-icon':file.endsWith('.ttf')?'font/ttf':'text/html; charset=utf-8');res.end(await readFile(path.join(root,'public',file)));return}
+    if(!p.startsWith('/api/')){const file={'/':'index.html','/app.js':'app.js','/canvas-geometry.js':'canvas-geometry.js','/element-properties.js':'element-properties.js','/style.css':'style.css','/caaqui.css':'caaqui.css','/brand/caaqui-logo.png':'brand/caaqui-logo.png','/brand/caaqui-symbol.png':'brand/caaqui-symbol.png','/favicon.svg':'favicon.svg','/favicon.ico':'favicon.ico','/favicon-32.png':'favicon-32.png','/apple-touch-icon.png':'apple-touch-icon.png'}[p]||(/^\/fonts\/poppins-(400|500|600|700)\.ttf$/.test(p)?p.slice(1):null);if(!file)status(404,'Não encontrado.');res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.png')?'image/png':file.endsWith('.svg')?'image/svg+xml':file.endsWith('.ico')?'image/x-icon':file.endsWith('.ttf')?'font/ttf':'text/html; charset=utf-8');res.end(await readFile(path.join(root,'public',file)));return}
     if(!['GET','HEAD'].includes(method)&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)status(403,'Origem inválida.');
     const db=await database();
     if(p==='/api/status'&&method==='GET')return send({setup:!await db.one('SELECT id FROM users LIMIT 1'),org:await org(db)});
@@ -89,6 +91,8 @@ export async function handler(req,res){
     if(!part&&method==='DELETE'){if(record.owner!==user.id&&!user.admin)status(403,'Somente o criador ou administrador pode excluir.');await db.batch([['DELETE FROM boards WHERE id=?',[board]],eventStatement(board,{type:'deleted'})]);return send({ok:true})}
     if(part==='objects'&&method==='PATCH'){
       const b=await body(req);if(!Array.isArray(b.changes)||b.changes.length>500)status(400,'Máximo de 500 alterações por vez.');const changes=b.changes.map(c=>{if(!c||typeof c.id!=='string'||!/^[\w-]{1,100}$/.test(c.id))status(400,'Objeto inválido.');if(c.object){if(c.object.id!==c.id)status(400,'Objeto inválido.');validateObject(c.object)}return{id:c.id,object:c.object||null}});
+      const existing=new Map((await db.query('SELECT id,json FROM objects WHERE board_id=?',[board])).map(row=>[row.id,JSON.parse(row.json)]));
+      for(const c of changes){const old=existing.get(c.id);if(elementLocked(existing,c.id)){if(!c.object)status(409,'Desbloqueie o elemento antes de excluí-lo.');const {locked:wasLocked,...before}=old,{locked:isLocked,...after}=c.object;if(!isDeepStrictEqual(before,after))status(409,'Desbloqueie o elemento antes de editá-lo.')}}
       await db.batch([...changes.map(c=>c.object?['INSERT INTO objects VALUES(?,?,?) ON CONFLICT(board_id,id) DO UPDATE SET json=excluded.json',[board,c.id,JSON.stringify(c.object)]]:['DELETE FROM objects WHERE board_id=? AND id=?',[board,c.id]]),['UPDATE boards SET updated=? WHERE id=?',[Date.now(),board]],eventStatement(board,{type:'patch',changes,client:String(b.client||'').slice(0,80),name:user.name})]);return send({ok:true});
     }
     if(part==='comments'&&method==='POST'){const b=await body(req),comment={id:id(),board_id:board,user_id:user.id,text:text(b.text,2000),created:Date.now(),name:user.name};await db.batch([['INSERT INTO comments VALUES(?,?,?,?,?)',[comment.id,board,user.id,comment.text,comment.created]],eventStatement(board,{type:'comment',comment})]);return send(comment)}

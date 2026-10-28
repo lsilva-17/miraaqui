@@ -1,3 +1,4 @@
+import {arrangeChanges,groupChanges,ungroupChanges,expandGroups,elementLocked,propertyError} from './public/element-properties.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {areaBetween,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR} from './public/canvas-geometry.js';
@@ -25,4 +26,20 @@ test('Shift encaixa o ponto em 30 graus em todos os quadrantes, com eixos exatos
 test('Novos cards são brancos e setas são pretas; cópia Alt mantém a cor escolhida',()=>{
   let id=0;const source={...a,color:'#ffb8b8'},pair=newConnectedCard(source,{x:500,y:300},'right',()=>String(++id));
   assert.equal(pair.card.color,'#ffffff');assert.equal(pair.line.color,'#000000');assert.equal(newFreeArrow({x:0,y:0},{x:100,y:20},'line').color,'#000000');assert.equal(emptyNoteCopy(source,'copy').color,source.color);
+});
+
+
+test('Alinhar respeita grupos como unidades e distribuir mantém os extremos',()=>{
+  const os=[{...a,groupId:'g'},{...b,groupId:'g'},{...a,id:'c',x:800,y:300},{...a,id:'d',x:1000,y:500}],map=new Map(os.map(o=>[o.id,o]));
+  const changes=arrangeChanges(map,['a','c'],'top');const shifted=changes.find(c=>c.id==='c').object;assert.equal(shifted.y,100);assert.equal(changes.some(c=>c.id==='a'||c.id==='b'),false);
+  const dist=arrangeChanges(map,['a','c','d'],'distributeX');const moved=dist.find(c=>c.id==='c').object;assert.equal(moved.x,685);assert.equal(dist.some(c=>c.id==='a'||c.id==='b'||c.id==='d'),false);
+});
+
+test('Grupos bloqueados não entram na seleção por área e não podem ser agrupados novamente',()=>{
+  const map=new Map([[a.id,{...a,groupId:'g',locked:true}],[b.id,{...b,groupId:'g'}]]);assert.equal(elementLocked(map,'b'),true);assert.deepEqual(selectionInArea(map,{x:0,y:0,w:1000,h:1000}),[]);assert.deepEqual(expandGroups(map,['a']),['a','b']);assert.deepEqual(groupChanges(map,['a','b'],()=> 'new'),[]);assert.deepEqual(ungroupChanges(map,['a']),[]);
+});
+
+test('Validação de texto impede CSS arbitrário e tamanhos inválidos',()=>{
+  assert.equal(propertyError({textStyle:{fontFamily:'Poppins',fontSize:24,bold:true,color:'#f0612d',vertical:'middle'}}),null);
+  for(const style of [{fontFamily:'url(evil)'},{fontSize:1},{fontSize:Infinity},{color:'red;display:none'},{position:'fixed'},{align:'evil'}])assert.ok(propertyError({textStyle:style}));
 });

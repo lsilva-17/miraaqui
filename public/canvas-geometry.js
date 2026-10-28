@@ -1,3 +1,4 @@
+import {elementLocked} from './element-properties.js';
 export function worldPoint(x,y,pan,zoom){return{x:(x-pan.x)/zoom,y:(y-pan.y)/zoom}}
 export const DEFAULT_CARD_COLOR='#ffffff',DEFAULT_LINE_COLOR='#000000';
 export function snapPoint(start,point){
@@ -33,7 +34,7 @@ export function newConnectedCard(source,point,side,newId){
   const line={id:newId(),type:'line',x:0,y:0,w:1,h:1,text:'',color:DEFAULT_LINE_COLOR,from:source.id,to:card.id,fromSide:side,z:Date.now()+1};
   return{card,line};
 }
-export function emptyNoteCopy(source,id){return{id,type:'sticky',x:source.x,y:source.y,w:source.w,h:source.h,text:'',color:source.color,z:Date.now()}}
+export function emptyNoteCopy(source,id){return{id,type:'sticky',x:source.x,y:source.y,w:source.w,h:source.h,text:'',color:source.color,...(source.textStyle?{textStyle:structuredClone(source.textStyle)}:{}),z:Date.now()}}
 export function newFreeArrow(start,end,id){
   const x=Math.min(start.x,end.x),y=Math.min(start.y,end.y),w=Math.max(1,Math.abs(end.x-start.x)),h=Math.max(1,Math.abs(end.y-start.y));
   return{id,type:'line',free:true,x,y,w,h,points:[[start.x,start.y],[end.x,end.y]].map(p=>[(p[0]-x)/w,(p[1]-y)/h]),text:'',color:DEFAULT_LINE_COLOR,z:Date.now()};
@@ -67,10 +68,12 @@ export function objectInArea(o,area,objects){
   if(o.type==='frame')return contains(area,{x:o.x,y:o.y})&&contains(area,{x:o.x+o.w,y:o.y+o.h});
   return intersects(area,o);
 }
-export function selectionInArea(objects,area){return[...objects.values()].filter(o=>objectInArea(o,area,objects)).map(o=>o.id)}
+export function selectionInArea(objects,area){return[...objects.values()].filter(o=>!elementLocked(objects,o.id)&&objectInArea(o,area,objects)).map(o=>o.id)}
 export function deletionIds(objects,ids){const chosen=new Set(ids);for(const o of objects.values())if(o.type==='line'&&(chosen.has(o.from)||chosen.has(o.to)))chosen.add(o.id);return[...chosen]}
 export function duplicateObjects(objects,ids,newId){
   const chosen=new Set(ids);for(const o of objects.values())if(o.type==='line'&&chosen.has(o.from)&&chosen.has(o.to))chosen.add(o.id);
+  const counts=new Map();for(const id of chosen){const group=objects.get(id)?.groupId;if(group)counts.set(group,(counts.get(group)||0)+1)}
+  const groups=new Map();for(const o of objects.values())if(chosen.has(o.id)&&o.groupId&&!groups.has(o.groupId))groups.set(o.groupId,newId());
   const mapping=new Map([...chosen].filter(id=>objects.has(id)).map(id=>[id,newId()]));
-  return[...mapping].map(([oldId,id],index)=>{const o=structuredClone(objects.get(oldId));return{...o,id,x:o.x+25,y:o.y+25,z:Date.now()+index,...(o.type==='line'?{from:mapping.get(o.from)||o.from,to:mapping.get(o.to)||o.to}:{})}});
+  return[...mapping].map(([oldId,id],index)=>{const o=structuredClone(objects.get(oldId));return{...o,id,locked:false,...(o.groupId?{groupId:counts.get(o.groupId)>1?groups.get(o.groupId):null}:{}),x:o.x+25,y:o.y+25,z:Date.now()+index,...(o.type==='line'?{from:mapping.get(o.from)||o.from,to:mapping.get(o.to)||o.to}:{})}});
 }
