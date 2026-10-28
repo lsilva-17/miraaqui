@@ -22,7 +22,7 @@ async function ui(){
   const context=vm.createContext({...geometry,...properties,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
     structuredClone,setTimeout,clearTimeout,console,fetch:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({})}}});
   const source=(await readFile(new URL('./public/app.js',import.meta.url),'utf8')).replace(/^import[^\n]+\n/,'').replace(/init\(\);\s*$/,'');
-  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,nodes:null};',context);
+  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,nodes:null};',context);
   const app=context.ui;app.state.board={id:'fixture'};app.state.pan={x:100,y:50};app.state.zoom=2;
   const target={dataset:{id:'source'},closest:s=>s==='[data-id]'?target:null};
   const event=(x,y,alt=true)=>({button:0,pointerId:1,clientX:x,clientY:y,altKey:alt,target,preventDefault(){}});
@@ -145,4 +145,20 @@ test('Selecionar individualmente dentro de um grupo exclui somente aquele membro
 
 test('Alterar cor de texto formatado atualiza a cor visível e preserva a fonte',async()=>{
   const app=await ui();app.state.objects.set('source',{...sticky(),type:'text',color:'#000000',textStyle:{color:'#045077',fontSize:30,bold:true}});app.selectObjects(['source']);app.setSelectionColor('#f0612d');await app.state.pending;const o=app.state.objects.get('source');assert.equal(o.color,'#f0612d');assert.equal(o.textStyle.color,'#f0612d');assert.equal(o.textStyle.fontSize,30);assert.equal(o.textStyle.bold,true);
+});
+
+
+test('Arrastar a ponta salva uma conexão parcial e desfazer restaura a âncora',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());app.state.objects.set('dest',{...sticky(),id:'dest',x:500});const line={id:'line',type:'line',from:'source',to:'dest',fromSide:'right',color:'#000000',x:0,y:0,w:1,h:1};app.state.objects.set('line',line);app.selectObjects(['line']);assert.match(app.node('#endpointHandles').innerHTML,/Mover fim da seta/);
+  const handle={dataset:{endpoint:'end',lineId:'line'}},target={closest:s=>s==='[data-endpoint]'?handle:null};app.vp.onpointerdown({...pointer(app,1100,410),target});app.vp.onpointermove(pointer(app,900,700));app.vp.onpointerup(pointer(app,900,700));await app.state.pending;
+  const moved=app.state.objects.get('line');assert.equal(moved.to,undefined);assert.deepEqual(JSON.parse(JSON.stringify(moved.toPoint)),{x:400,y:325});assert.equal(moved.from,'source');app.undo();await app.state.pending;assert.equal(app.state.objects.get('line').to,'dest');app.redo();await app.state.pending;assert.equal(app.state.objects.get('line').to,undefined);
+});
+test('Visualizador não move objetos, formata ou cria cópias e não vê controles de ponta',async()=>{
+  const app=await ui();app.state.user={role:'viewer',admin:false};app.state.objects.set('source',sticky());app.selectObjects(['source']);app.vp.onpointerdown(pointer(app,320,280));app.vp.onpointermove(pointer(app,560,400));app.vp.onpointerup(pointer(app,560,400));app.formatSelection({fontSize:60});app.setSelectionColor('#ff0000');app.deleteSelected();await app.state.pending;assert.equal(app.state.objects.size,1);assert.equal(app.state.objects.get('source').x,100);assert.equal(app.state.objects.get('source').textStyle,undefined);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0);
+  app.state.objects.set('line',geometry.newFreeArrow({x:0,y:0},{x:100,y:50},'line'));app.selectObjects(['line']);app.renderEndpoints();assert.equal(app.node('#endpointHandles').innerHTML,'');
+});
+
+
+test('Alterações enfileiradas de uma sessão antiga não são enviadas depois de trocar de sessão',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());app.selectObjects(['source']);app.formatSelection({fontSize:30});app.state.authVersion++;app.state.board=null;await assert.rejects(app.state.pending,/sessão mudou/);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0);
 });

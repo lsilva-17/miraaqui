@@ -39,7 +39,8 @@ export function newFreeArrow(start,end,id){
   const x=Math.min(start.x,end.x),y=Math.min(start.y,end.y),w=Math.max(1,Math.abs(end.x-start.x)),h=Math.max(1,Math.abs(end.y-start.y));
   return{id,type:'line',free:true,x,y,w,h,points:[[start.x,start.y],[end.x,end.y]].map(p=>[(p[0]-x)/w,(p[1]-y)/h]),text:'',color:DEFAULT_LINE_COLOR,z:Date.now()};
 }
-export function edgePoint(o,target,side){
+export function edgePoint(o,target,side,anchor){
+  if(anchor)return{x:o.x+anchor.x*o.w,y:o.y+anchor.y*o.h};
   const center={x:o.x+o.w/2,y:o.y+o.h/2};
   if(normals[side])return{x:center.x+normals[side].x*o.w/2,y:center.y+normals[side].y*o.h/2};
   let dx=target.x-center.x,dy=target.y-center.y;if(dx===0&&dy===0)dx=1;
@@ -49,18 +50,34 @@ export function edgePoint(o,target,side){
 }
 export function connectionGeometry(line,objects){
   if(line.free){const[start,end]=line.points.map(p=>({x:line.x+p[0]*line.w,y:line.y+p[1]*line.h}));return{start,end,path:`M${start.x} ${start.y} L${end.x} ${end.y}`,points:[start,end]}}
-  const a=objects.get(line.from),b=objects.get(line.to);if(!a||!b)return null;
-  const ac={x:a.x+a.w/2,y:a.y+a.h/2},bc={x:b.x+b.w/2,y:b.y+b.h/2};
-  const curved=!!normals[line.fromSide];
-  let toSide=normals[line.toSide]?line.toSide:null;
-  if(curved&&!toSide){const dx=ac.x-bc.x,dy=ac.y-bc.y;toSide=Math.abs(dx)/(b.w/2)>=Math.abs(dy)/(b.h/2)?dx<0?'left':'right':dy<0?'top':'bottom'}
-  const start=edgePoint(a,bc,line.fromSide),end=edgePoint(b,ac,toSide);
+  const a=objects.get(line.from),b=objects.get(line.to),ac=a?{x:a.x+a.w/2,y:a.y+a.h/2}:line.fromPoint,bc=b?{x:b.x+b.w/2,y:b.y+b.h/2}:line.toPoint;if(!ac||!bc)return null;
+  const curved=!!(a&&normals[line.fromSide]||b&&normals[line.toSide]);let toSide=normals[line.toSide]?line.toSide:null;
+  if(curved&&b&&!toSide){const dx=ac.x-bc.x,dy=ac.y-bc.y;toSide=Math.abs(dx)/(b.w/2)>=Math.abs(dy)/(b.h/2)?dx<0?'left':'right':dy<0?'top':'bottom'}
+  const start=a?edgePoint(a,bc,line.fromSide,line.fromAnchor):ac,end=b?edgePoint(b,ac,toSide,line.toAnchor):bc;
   if(!curved)return{start,end,path:`M${start.x} ${start.y} L${end.x} ${end.y}`,points:[start,end]};
-  const distance=Math.max(45,Math.min(180,Math.hypot(end.x-start.x,end.y-start.y)/2));
-  const n1=normals[line.fromSide],n2=normals[toSide];
+  const distance=Math.max(45,Math.min(180,Math.hypot(end.x-start.x,end.y-start.y)/2)),length=Math.hypot(end.x-start.x,end.y-start.y)||1;
+  const direction={x:(end.x-start.x)/length,y:(end.y-start.y)/length},n1=a&&normals[line.fromSide]||direction,n2=b&&normals[toSide]||{x:-direction.x,y:-direction.y};
   const c1={x:start.x+n1.x*distance,y:start.y+n1.y*distance},c2={x:end.x+n2.x*distance,y:end.y+n2.y*distance};
   const points=Array.from({length:25},(_,i)=>{const t=i/24,u=1-t;return{x:u**3*start.x+3*u*u*t*c1.x+3*u*t*t*c2.x+t**3*end.x,y:u**3*start.y+3*u*u*t*c1.y+3*u*t*t*c2.y+t**3*end.y}});
   return{start,end,c1,c2,points,path:`M${start.x} ${start.y} C${c1.x} ${c1.y} ${c2.x} ${c2.y} ${end.x} ${end.y}`};
+}
+export function attachmentAt(object,point){
+  const x=Math.max(0,Math.min(1,(point.x-object.x)/object.w)),y=Math.max(0,Math.min(1,(point.y-object.y)/object.h));
+  let side=[['left',x],['right',1-x],['top',y],['bottom',1-y]].sort((a,b)=>a[1]-b[1])[0][0],anchor;
+  if(['ellipse','diamond'].includes(object.type)){const p=edgePoint(object,point);anchor={x:(p.x-object.x)/object.w,y:(p.y-object.y)/object.h}}
+  else anchor={x:side==='left'?0:side==='right'?1:x,y:side==='top'?0:side==='bottom'?1:y};
+  return{id:object.id,side,anchor};
+}
+export function moveEndpoint(line,which,point,attachment,objects){
+  const geometry=connectionGeometry(line,objects);if(!geometry)return {...line};const next=structuredClone(line);
+  if(next.free){next.fromPoint={...geometry.start};next.toPoint={...geometry.end};delete next.points;delete next.free}
+  const key=which==='start'?'from':'to';for(const k of [key,key+'Point',key+'Side',key+'Anchor'])delete next[k];
+  if(attachment){next[key]=attachment.id;next[key+'Side']=attachment.side;next[key+'Anchor']=attachment.anchor}else next[key+'Point']={...point};
+  if(!next.from&&!next.to){const free=newFreeArrow(next.fromPoint,next.toPoint,next.id);for(const k of ['fromPoint','toPoint','fromAnchor','toAnchor','fromSide','toSide'])delete next[k];return{...next,...free,color:line.color,z:line.z??free.z}}
+  return next;
+}
+export function translateObject(o,delta){
+  const moved={...o,x:o.x+delta.x,y:o.y+delta.y};for(const key of ['fromPoint','toPoint'])if(o[key])moved[key]={x:o[key].x+delta.x,y:o[key].y+delta.y};return moved;
 }
 export function objectInArea(o,area,objects){
   if(o.type==='line'){const geometry=connectionGeometry(o,objects);return!!geometry&&geometry.points.slice(1).some((p,i)=>segmentInArea(geometry.points[i],p,area))}
@@ -75,5 +92,5 @@ export function duplicateObjects(objects,ids,newId){
   const counts=new Map();for(const id of chosen){const group=objects.get(id)?.groupId;if(group)counts.set(group,(counts.get(group)||0)+1)}
   const groups=new Map();for(const o of objects.values())if(chosen.has(o.id)&&o.groupId&&!groups.has(o.groupId))groups.set(o.groupId,newId());
   const mapping=new Map([...chosen].filter(id=>objects.has(id)).map(id=>[id,newId()]));
-  return[...mapping].map(([oldId,id],index)=>{const o=structuredClone(objects.get(oldId));return{...o,id,locked:false,...(o.groupId?{groupId:counts.get(o.groupId)>1?groups.get(o.groupId):null}:{}),x:o.x+25,y:o.y+25,z:Date.now()+index,...(o.type==='line'?{from:mapping.get(o.from)||o.from,to:mapping.get(o.to)||o.to}:{})}});
+  return[...mapping].map(([oldId,id],index)=>{const o=structuredClone(objects.get(oldId));const moved=translateObject(o,{x:25,y:25});return{...moved,id,locked:false,...(o.groupId?{groupId:counts.get(o.groupId)>1?groups.get(o.groupId):null}:{}),z:Date.now()+index,...(o.type==='line'?{from:mapping.get(o.from)||o.from,to:mapping.get(o.to)||o.to}:{})}});
 }

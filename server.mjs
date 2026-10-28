@@ -6,17 +6,18 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {database} from './lib/database.mjs';
 import {allowedEmail} from './lib/access-policy.mjs';
+import {memberPublic,memberUpdate} from './lib/member-policy.mjs';
 import {propertyError,elementLocked} from './public/element-properties.js';
 const scrypt=promisify(rawScrypt),root=path.dirname(fileURLToPath(import.meta.url));
 const id=()=>randomBytes(16).toString('hex'),digest=s=>createHash('sha256').update(s).digest('hex');
-const safeUser=u=>({id:u.id,email:u.email,name:u.name,admin:!!u.admin});
+const safeUser=memberPublic;
 const secure=()=>process.env.VERCEL||process.env.ELO_SECURE_COOKIE==='1';
 function status(code,message){throw Object.assign(new Error(message),{status:code})}
 function text(v,max=200){if(typeof v!=='string'||!v.trim()||v.length>max)status(400,'Preencha os campos corretamente.');return v.trim()}
 async function body(req){if(req.body&&typeof req.body==='object')return req.body;let input='';for await(const chunk of req){input+=chunk;if(input.length>4_300_000)status(413,'Arquivo muito grande.')}try{return JSON.parse(input||'{}')}catch{status(400,'Dados inválidos.')}}
 async function hashPassword(v){if(typeof v!=='string'||v.length<10||v.length>200)status(400,'Use uma senha de 10 a 200 caracteres.');const salt=id();return salt+':'+(await scrypt(v,salt,64)).toString('hex')}
 function tokenFrom(req){return(req.headers.cookie||'').split(';').map(s=>s.trim()).find(s=>s.startsWith('elo='))?.slice(4)}
-async function auth(db,req){const token=tokenFrom(req);if(!token)return null;const user=await db.one('SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id WHERE token=? AND expires>?',[digest(token),Date.now()]);return user&&allowedEmail(user.email)?user:null}
+async function auth(db,req){const token=tokenFrom(req);if(!token)return null;const user=await db.one('SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id WHERE token=? AND expires>?',[digest(token),Date.now()]);return user&&allowedEmail(user.email)&&(user.status||'active')==='active'?user:null}
 async function session(db,res,user){const token=id()+id();await db.query('INSERT INTO sessions VALUES(?,?,?)',[digest(token),user.id,Date.now()+7*86400000]);res.setHeader('Set-Cookie',`elo=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${secure()?'; Secure':''}`)}
 const eventStatement=(board,event)=>['INSERT INTO events(board_id,payload,created) VALUES(?,?,?)',[board,JSON.stringify(event),Date.now()]];
 async function org(db){return(await db.one("SELECT value FROM settings WHERE key='org'"))?.value||'Minha companhia'}
@@ -29,7 +30,14 @@ function validateObject(o){
   if(typeof o.color!=='string'||!/^#[a-f\d]{6}$/i.test(o.color))status(400,'Cor inválida.');
   if(o.z!==undefined&&!Number.isFinite(o.z))status(400,'Ordem inválida.');
   if(o.type==='pen'&&(!Array.isArray(o.points)||o.points.length<2||o.points.length>5000||o.points.some(p=>!Array.isArray(p)||p.length!==2||!p.every(v=>typeof v==='number'&&Number.isFinite(v)&&Math.abs(v)<1e7))))status(400,'Desenho inválido.');
-  if(o.type==='line'){if(o.free){if(!Array.isArray(o.points)||o.points.length!==2||o.points.some(p=>!Array.isArray(p)||p.length!==2||!p.every(n=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1)))status(400,'Seta livre inválida.')}else if(!/^[\w-]{1,100}$/.test(o.from)||!/^[\w-]{1,100}$/.test(o.to))status(400,'Conector inválido.')}
+  if(o.type==='line'){
+    if(o.free){if(!Array.isArray(o.points)||o.points.length!==2||o.points.some(p=>!Array.isArray(p)||p.length!==2||!p.every(n=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1)))status(400,'Seta livre inválida.')}
+    else for(const key of ['from','to']){const point=o[key+'Point'],anchor=o[key+'Anchor'],side=o[key+'Side'];
+      if(!(typeof o[key]==='string'&&/^[\w-]{1,100}$/.test(o[key]))&&!(point&&['x','y'].every(k=>Number.isFinite(point[k])&&Math.abs(point[k])<=1e7)))status(400,'Extremidade da seta inválida.');
+      if(anchor&&!['x','y'].every(k=>Number.isFinite(anchor[k])&&anchor[k]>=0&&anchor[k]<=1))status(400,'Ponto de conexão inválido.');
+      if(side!=null&&!['top','right','bottom','left'].includes(side))status(400,'Lado da seta inválido.');
+    }
+  }
   if(o.type==='image'&&(!/^data:image\/(png|jpeg|webp|gif);base64,/.test(o.src||'')||o.src.length>3_500_000))status(400,'Formato de imagem inválido.');
 }
 async function stream(db,req,res,board,user,client){
@@ -42,9 +50,9 @@ async function stream(db,req,res,board,user,client){
     const end=()=>{if(ended)return;ended=true;clearTimeout(timer);clearTimeout(lifetime);if(!res.writableEnded)res.end();resolve()};
     const lifetime=setTimeout(end,45000);res.on('close',end);res.on('error',end);
     const poll=async()=>{if(ended)return;try{
-      if(Date.now()-lastCheck>10000){if(!await auth(db,req)){end();return}await db.query('UPDATE presence SET seen=? WHERE board_id=? AND client=?',[Date.now(),board,client]);lastCheck=Date.now()}
+      if(!await auth(db,req)){write({type:'access-revoked'});end();return}if(Date.now()-lastCheck>10000){await db.query('UPDATE presence SET seen=? WHERE board_id=? AND client=?',[Date.now(),board,client]);lastCheck=Date.now()}
       const rows=await db.query('SELECT seq,payload FROM events WHERE board_id=? AND seq>? ORDER BY seq LIMIT 100',[board,last]);for(const row of rows){write(JSON.parse(row.payload),row.seq);last=Number(row.seq)}
-      const online=await db.query('SELECT presence.*,users.name,users.email,users.admin FROM presence JOIN users ON users.id=presence.user_id WHERE board_id=? AND seen>?',[board,Date.now()-30000]);
+      const online=await db.query('SELECT presence.*,users.name,users.email,users.admin,users.status,users.access FROM presence JOIN users ON users.id=presence.user_id WHERE board_id=? AND seen>?',[board,Date.now()-30000]);
       write({type:'presence',users:[...new Map(online.map(p=>[p.user_id,safeUser({...p,id:p.user_id})])).values()]});
       for(const p of online)if(p.client!==client&&p.x!==null&&p.y!==null)write({type:'cursor',user:safeUser({...p,id:p.user_id}),client:p.client,x:p.x,y:p.y});res.write(': ping\n\n');
     }catch{end();return}if(!ended)timer=setTimeout(poll,1500)};void poll();
@@ -67,6 +75,7 @@ export async function handler(req,res){
       let user;
       if(p==='/api/login'){
         user=await db.one('SELECT * FROM users WHERE email=?',[email]);const[salt,hash]=(user?.hash||'empty:'+('0'.repeat(128))).split(':');const candidate=await scrypt(String(b.password||'').slice(0,200),salt,64);if(!user||!timingSafeEqual(candidate,Buffer.from(hash,'hex')))status(401,'E-mail ou senha incorretos.');
+      if((user.status||'active')!=='active')status(403,'Seu acesso está suspenso ou removido. Contate o administrador.');
       }else{
         const setup=p==='/api/setup';if(setup&&await db.one('SELECT id FROM users LIMIT 1'))status(409,'A companhia já foi configurada.');
         if(setup&&process.env.VERCEL&&(!process.env.ELO_SETUP_TOKEN||!timingSafeEqual(Buffer.from(digest(String(b.setupToken||''))),Buffer.from(digest(process.env.ELO_SETUP_TOKEN)))))status(403,'A configuração inicial está desabilitada. Contate o administrador.');
@@ -79,10 +88,21 @@ export async function handler(req,res){
       await session(db,res,user);return send({user:safeUser(user),org:await org(db)});
     }
     const user=await auth(db,req);if(!user)status(401,'Entre na sua conta para continuar.');
+    if(!user.admin&&user.access==='view'&&!['GET','HEAD'].includes(method)&&p!=='/api/logout'&&!/^\/api\/boards\/[a-f0-9]{32}\/cursor$/.test(p))status(403,'Seu acesso permite somente visualização.');
     if(p==='/api/me'&&method==='GET')return send({user:safeUser(user),org:await org(db)});
     if(p==='/api/logout'&&method==='POST'){const token=tokenFrom(req);if(token)await db.query('DELETE FROM sessions WHERE token=?',[digest(token)]);res.setHeader('Set-Cookie',`elo=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure()?'; Secure':''}`);return send({ok:true})}
     if(p==='/api/invites'&&method==='POST'){if(!user.admin)status(403,'Somente administradores podem convidar.');const token=id();await db.query('INSERT INTO invites VALUES(?,?)',[digest(token),Date.now()+7*86400000]);return send({token})}
-    if(p==='/api/members'&&method==='GET')return send(await db.query('SELECT id,name,email,admin FROM users'));
+    if(p==='/api/members'&&method==='GET')return send((await db.query('SELECT id,name,email,admin,status,access FROM users'+(user.admin?'':" WHERE status='active'")+' ORDER BY name')).map(memberPublic));
+    const memberRoute=p.match(/^\/api\/members\/([a-f0-9]{32})(?:\/(history))?$/);
+    if(memberRoute){
+      if(!user.admin)status(403,'Somente administradores podem gerenciar membros.');const targetId=memberRoute[1],old=await db.one('SELECT * FROM users WHERE id=?',[targetId]);if(!old)status(404,'Membro não encontrado.');
+      if(memberRoute[2]==='history'&&method==='GET')return send(await db.query('SELECT member_audit.id,member_audit.details,member_audit.created,users.name AS actor FROM member_audit JOIN users ON users.id=member_audit.actor_id WHERE target_id=? ORDER BY created DESC LIMIT 30',[targetId]));
+      if(!memberRoute[2]&&['PATCH','DELETE'].includes(method)){
+        const input=method==='DELETE'?{status:'removed'}:await body(req),{next,revoke}=memberUpdate(old,input,user.id);
+        try{const updated=await db.updateMember(user.id,targetId,next,{revoke,auditId:id(),created:Date.now(),details:JSON.stringify({before:memberPublic(old),after:memberPublic(next)})});if(!updated)status(409,'A equipe precisa manter ao menos um administrador ativo. Atualize a lista e tente novamente.');return send({member:memberPublic(updated),sessionsRevoked:revoke})}catch(error){if(error.code==='23505'||[2067,1555].includes(error.errcode)||String(error.code).startsWith('SQLITE_CONSTRAINT'))status(409,'Este e-mail já está cadastrado.');throw error}
+      }
+      status(405,'Ação não permitida.');
+    }
     if(p==='/api/boards'&&method==='GET')return send(await db.query('SELECT boards.*,users.name AS author,(SELECT COUNT(*) FROM objects WHERE board_id=boards.id) AS count FROM boards JOIN users ON users.id=boards.owner ORDER BY updated DESC'));
     if(p==='/api/boards'&&method==='POST'){const b=await body(req),board=id();await db.query('INSERT INTO boards VALUES(?,?,?,?)',[board,text(b.title),user.id,Date.now()]);return send({id:board})}
     const match=p.match(/^\/api\/boards\/([a-f0-9]{32})(?:\/(events|objects|comments|cursor))?$/);if(!match)status(404,'Não encontrado.');const board=match[1],part=match[2],record=await db.one('SELECT * FROM boards WHERE id=?',[board]);if(!record)status(404,'Quadro não encontrado.');

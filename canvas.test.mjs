@@ -1,7 +1,7 @@
 import {arrangeChanges,groupChanges,ungroupChanges,expandGroups,elementLocked,propertyError} from './public/element-properties.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {areaBetween,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR} from './public/canvas-geometry.js';
+import {areaBetween,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,moveEndpoint,translateObject} from './public/canvas-geometry.js';
 const a={id:'a',type:'sticky',x:100,y:100,w:100,h:80},b={id:'b',type:'rect',x:350,y:100,w:120,h:80},frame={id:'f',type:'frame',x:50,y:50,w:500,h:400};
 test('Seleção funciona em ambas as direções e ignora o frame externo',()=>{const objects=new Map([a,b,frame].map(o=>[o.id,o]));assert.deepEqual(selectionInArea(objects,areaBetween({x:480,y:190},{x:90,y:90})),['a','b']);assert.deepEqual(selectionInArea(objects,{x:0,y:0,w:600,h:500}),['a','b','f']);assert.deepEqual(selectionInArea(objects,{x:201,y:181,w:40,h:20}),[])});
 test('Conversão de coordenadas respeita deslocamento e zoom',()=>{assert.deepEqual(worldPoint(450,220,{x:150,y:20},2),{x:150,y:100});assert.deepEqual(worldPoint(75,30,{x:-25,y:-20},.5),{x:200,y:100})});
@@ -42,4 +42,21 @@ test('Grupos bloqueados não entram na seleção por área e não podem ser agru
 test('Validação de texto impede CSS arbitrário e tamanhos inválidos',()=>{
   assert.equal(propertyError({textStyle:{fontFamily:'Poppins',fontSize:24,bold:true,color:'#f0612d',vertical:'middle'}}),null);
   for(const style of [{fontFamily:'url(evil)'},{fontSize:1},{fontSize:Infinity},{color:'red;display:none'},{position:'fixed'},{align:'evil'}])assert.ok(propertyError({textStyle:style}));
+});
+
+
+test('Pontas podem mudar de lado e manter um ponto personalizado após mover o bloco',()=>{
+  const objects=new Map([[a.id,a],[b.id,b]]),line={id:'line',type:'line',from:'a',to:'b',fromSide:'top',color:'#000000',x:0,y:0,w:1,h:1};
+  const changed=moveEndpoint(line,'start',{x:101,y:130},attachmentAt(a,{x:101,y:130}),objects);assert.equal(changed.fromSide,'left');assert.deepEqual(connectionGeometry(changed,objects).start,{x:100,y:130});
+  objects.set('a',{...a,x:200,h:160});assert.deepEqual(connectionGeometry(changed,objects).start,{x:200,y:160});assert.equal(line.fromSide,'top');
+});
+test('Desprender uma ponta preserva a outra conexão e desprender ambas cria seta livre',()=>{
+  const objects=new Map([[a.id,a],[b.id,b]]),line={id:'line',type:'line',from:'a',to:'b',fromSide:'right',color:'#f0612d',groupId:'g',x:0,y:0,w:1,h:1};
+  const dangling=moveEndpoint(line,'end',{x:700,y:300},null,objects);assert.equal(dangling.from,'a');assert.equal(dangling.to,undefined);assert.deepEqual(connectionGeometry(dangling,objects).end,{x:700,y:300});
+  const free=moveEndpoint(dangling,'start',{x:50,y:60},null,objects);assert.equal(free.free,true);assert.equal(free.color,'#f0612d');assert.equal(free.groupId,'g');assert.deepEqual(connectionGeometry(free,objects).start,{x:50,y:60});assert.deepEqual(connectionGeometry(free,objects).end,{x:700,y:300});
+});
+test('Seta livre pode se reconectar a um bloco e pontas soltas acompanham duplicação',()=>{
+  const objects=new Map([[b.id,b]]),line=newFreeArrow({x:10,y:20},{x:200,y:100},'free');
+  const attached=moveEndpoint(line,'end',{x:351,y:140},attachmentAt(b,{x:351,y:140}),objects);assert.equal(attached.to,'b');assert.deepEqual(connectionGeometry(attached,objects).start,{x:10,y:20});assert.deepEqual(connectionGeometry(attached,objects).end,{x:350,y:140});
+  const translated=translateObject(attached,{x:25,y:35});assert.deepEqual(translated.fromPoint,{x:35,y:55});assert.equal(translated.to,'b');
 });
