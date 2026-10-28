@@ -68,6 +68,7 @@ export function attachmentAt(object,point){
   else anchor={x:side==='left'?0:side==='right'?1:x,y:side==='top'?0:side==='bottom'?1:y};
   return{id:object.id,side,anchor};
 }
+export function lineLabelPoint(line,objects){const g=connectionGeometry(line,objects);if(!g)return{x:line.x,y:line.y};return g.c1?{x:(g.start.x+3*g.c1.x+3*g.c2.x+g.end.x)/8,y:(g.start.y+3*g.c1.y+3*g.c2.y+g.end.y)/8}:{x:(g.start.x+g.end.x)/2,y:(g.start.y+g.end.y)/2}}
 // Match the external blue ports and the edge in screen pixels, at every zoom.
 export function connectionAttachment(objects,point,zoom=1,{targetId=null,excludeId=null}={}){
   const candidates=[];
@@ -93,7 +94,7 @@ export function moveEndpoint(line,which,point,attachment,objects){
   if(next.free){next.fromPoint={...geometry.start};next.toPoint={...geometry.end};delete next.points;delete next.free}
   const key=which==='start'?'from':'to';for(const k of [key,key+'Point',key+'Side',key+'Anchor'])delete next[k];
   if(attachment){next[key]=attachment.id;next[key+'Side']=attachment.side;next[key+'Anchor']=attachment.anchor}else next[key+'Point']={...point};
-  if(!next.from&&!next.to){const free=newFreeArrow(next.fromPoint,next.toPoint,next.id);for(const k of ['fromPoint','toPoint','fromAnchor','toAnchor','fromSide','toSide'])delete next[k];return{...next,...free,color:line.color,z:line.z??free.z}}
+  if(!next.from&&!next.to){const free=newFreeArrow(next.fromPoint,next.toPoint,next.id);for(const k of ['fromPoint','toPoint','fromAnchor','toAnchor','fromSide','toSide'])delete next[k];return{...next,...free,text:line.text||'',color:line.color,z:line.z??free.z}}
   return next;
 }
 export function translateObject(o,delta){

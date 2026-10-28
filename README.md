@@ -57,4 +57,16 @@ Ao aproximar uma ponta das bolinhas azuis externas, o ímã encaixa a ligação 
 
 ## Template Roadmap
 
-Em “Comece com uma ideia”, escolha Roadmap. O quadro começa com atividades de exemplo e uma linha do tempo. Em “Editar atividades”, altere título, início, fim e percentual concluído, adicione ou remova atividades e salve. As barras usam datas inclusivas e mudam de posição e tamanho automaticamente. A visualização pode ser Semana (segunda a domingo), Quinzena (1–15 e 16–fim do mês), Mês, Trimestre, Semestre ou Ano. O calendário cobre todas as datas das atividades; use a rolagem interna para percorrer períodos extensos. São permitidas até 100 atividades e um intervalo total de até 10 anos. Mudanças são salvas no quadro, compartilhadas, desfeitas/refeitas e incluídas nos backups JSON e na exportação SVG. Visualizadores e elementos bloqueados não podem editar o roadmap.
+Em “Comece com uma ideia”, escolha Roadmap. Edite nome, datas de início/fim e status diretamente em cada linha; Enter ou o botão ✓ salva a atividade, e mudanças em datas/status também são salvas. O botão “Editar atividades” permite adicionar, remover e editar o conjunto. Os status são Não iniciado, Em andamento e Concluído. Roadmaps antigos convertem 0% para Não iniciado, valores entre 0 e 100 para Em andamento e 100% para Concluído, sem perder datas.
+
+As barras usam datas inclusivas e mudam de posição e tamanho automaticamente. O marcador vertical indica hoje: verde em atividades concluídas, vermelho suave nas vencidas ainda não concluídas, azul nas demais em andamento e neutro nas não iniciadas. As barras usam a mesma indicação. O marcador atualiza quando o dia muda. A visualização pode ser Semana (segunda a domingo), Quinzena (1–15 e 16–fim do mês), Mês, Trimestre, Semestre ou Ano. O calendário inclui hoje quando isso mantém um intervalo de até 10 anos; fora desse limite o marcador fica na borda, indicando a data no título. Use a rolagem interna para percorrer períodos extensos. São permitidas até 100 atividades e um intervalo total de até 10 anos.
+
+Mudanças são salvas no quadro, compartilhadas, desfeitas/refeitas e incluídas nos backups JSON e na exportação SVG. Visualizadores e elementos bloqueados não podem editar.
+
+## Texto, frames e linhas
+
+Na ferramenta de seleção, clique no elemento para selecionar e clique novamente, sem arrastar, para editar o texto. Também funciona com duplo clique. Enter salva e fecha; Ctrl+Enter quebra a linha; Escape cancela. Setas podem receber um rótulo no centro. Seleções múltiplas e arrastes não abrem a edição.
+
+Selecione um frame ou linha e use “Estilo” na barra inferior ou “Estilo de linha / frame…” no botão direito. Frames permitem cor e opacidade do fundo, cor/espessura/padrão da borda, arredondamento e texto visível ou oculto, dentro ou acima do frame. Os frames ficam atrás das conexões e dos demais elementos.
+
+Ao clicar no ícone de seta, escolha as pontas inicial e final independentemente: sem ponta, seta, bolinha, losango ou quadrado; o traço pode ser contínuo, tracejado ou pontilhado, com espessura de 1 a 12. A escolha é usada nas próximas linhas da sessão, inclusive pelas bolinhas dos cards. Linhas existentes podem ser alteradas individualmente ou em grupo e mantêm texto e estilo ao reconectar. A cor inicial continua preta.

@@ -12,18 +12,18 @@ async function ui(){
   const nodes=new Map(),requests=[],listeners=new Map();
   const node=selector=>{
     if(!nodes.has(selector))nodes.set(selector,{style:{setProperty(){}},dataset:{},classList:{add(){},remove(){},toggle(){}},hidden:true,
-      addEventListener(type,fn){listeners.set(selector+':'+type,fn)},setAttribute(){},focus(){},setPointerCapture(){},contains(){return true},
+      addEventListener(type,fn){listeners.set(selector+':'+type,fn)},setAttribute(){},focus(){},select(){},append(){},remove(){},setRangeText(value,start,end){this.value=this.value.slice(0,start)+value+this.value.slice(end)},setPointerCapture(){},contains(){return true},
       getBoundingClientRect(){return {left:0,top:0,width:1200,height:700}},querySelector(){return null},querySelectorAll(){return []}});
     return nodes.get(selector);
   };
   const tools=['select','hand','sticky','text','rect','ellipse','diamond','line','pen','frame'].map(tool=>Object.assign(node('tool-'+tool),{dataset:{tool}}));
   const colors=Array.from({length:10},(_,i)=>Object.assign(node('color-'+i),{dataset:{noteColor:i===0?'#fff0a9':'#c9e8ff'}}));
-  const document={querySelector:node,querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:[],
+  const document={createElement:tag=>node('created-'+tag),querySelector:node,querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:[],
     elementsFromPoint(){return []},elementFromPoint(){return {closest(){return null}}},getElementById(id){return node(id)},addEventListener(type,fn){listeners.set(type,fn)},documentElement:node('root')};
   const context=vm.createContext({...geometry,...properties,...roadmap,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
     structuredClone,setTimeout,clearTimeout,console,fetch:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({})}}});
   const source=(await readFile(new URL('./public/app.js',import.meta.url),'utf8')).replace(/^import[^\n]+\n/,'').replace(/init\(\);\s*$/,'');
-  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,template,saveRoadmap,nodes:null};',context);
+  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,template,saveRoadmap,saveInlineRoadmap,beginTextEdit,finishTextEdit,applyAppearance,nodes:null};',context);
   const app=context.ui;app.state.board={id:'fixture'};app.state.pan={x:100,y:50};app.state.zoom=2;
   const target={dataset:{id:'source'},closest:s=>s==='[data-id]'?target:null};
   const event=(x,y,alt=true)=>({button:0,pointerId:1,clientX:x,clientY:y,altKey:alt,target,preventDefault(){}});
@@ -199,10 +199,35 @@ test('Criar ligação reconhece bolinha externa do destino sem criar card extra'
 });
 
 
-test('Template Roadmap salva datas e progresso, muda escala e desfaz a alteração inteira',async()=>{
+test('Template Roadmap salva datas e status, muda escala e desfaz a alteração inteira',async()=>{
   const app=await ui(),objects=app.template('roadmap');assert.equal(objects.length,1);const object=objects[0];assert.equal(object.type,'roadmap');app.state.objects.set(object.id,object);
-  const value=structuredClone(object.roadmap);value.view='quarter';value.tasks[0].start='2026-01-01';value.tasks[0].end='2026-06-30';value.tasks[0].progress=37;
-  await app.saveRoadmap(object.id,'Plano de produto',value);const saved=app.state.objects.get(object.id);assert.equal(saved.text,'Plano de produto');assert.equal(saved.roadmap.view,'quarter');assert.equal(saved.roadmap.tasks[0].progress,37);
-  assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);app.undo();await app.state.pending;assert.equal(app.state.objects.get(object.id).roadmap.view,'month');app.redo();await app.state.pending;assert.equal(app.state.objects.get(object.id).roadmap.tasks[0].progress,37);
+  const value=structuredClone(object.roadmap);value.view='quarter';value.tasks[0].start='2026-01-01';value.tasks[0].end='2026-06-30';value.tasks[0].status='in_progress';
+  await app.saveRoadmap(object.id,'Plano de produto',value);const saved=app.state.objects.get(object.id);assert.equal(saved.text,'Plano de produto');assert.equal(saved.roadmap.view,'quarter');assert.equal(saved.roadmap.tasks[0].status,'in_progress');
+  assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);app.undo();await app.state.pending;assert.equal(app.state.objects.get(object.id).roadmap.view,'month');app.redo();await app.state.pending;assert.equal(app.state.objects.get(object.id).roadmap.tasks[0].status,'in_progress');
   app.state.user={role:'viewer'};await assert.rejects(app.saveRoadmap(object.id,'Tentativa',value),/não pode/);assert.equal(app.state.objects.get(object.id).text,'Plano de produto');
+});
+
+
+test('Segundo clique edita texto; Enter salva, Ctrl Enter quebra linha e Escape cancela',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());app.vp.onpointerdown(pointer(app,320,280));app.vp.onpointerup(pointer(app,320,280));assert.equal(app.node('created-textarea').value,undefined);
+  app.vp.onpointerdown(pointer(app,320,280));app.vp.onpointerup(pointer(app,320,280));const input=app.node('created-textarea');assert.equal(input.value,'Original');input.value='Primeira';input.selectionStart=8;input.selectionEnd=8;
+  const key=(key,ctrlKey=false)=>({key,ctrlKey,preventDefault(){},stopPropagation(){}});input.onkeydown(key('Enter',true));assert.equal(input.value,'Primeira\n');input.value+='Segunda';input.onkeydown(key('Enter'));await app.state.pending;assert.equal(app.state.objects.get('source').text,'Primeira\nSegunda');assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);
+  app.beginTextEdit('source');input.value='Cancelar';input.onkeydown(key('Escape'));assert.equal(app.state.objects.get('source').text,'Primeira\nSegunda');app.undo();await app.state.pending;assert.equal(app.state.objects.get('source').text,'Original');
+});
+test('Texto em seta ancorada é editável e preserva extremos e estilo',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());app.state.objects.set('dest',{...sticky(),id:'dest',x:500});const line={id:'line',type:'line',x:0,y:0,w:1,h:1,color:'#000000',text:'',from:'source',to:'dest',lineStyle:{start:'dot',end:'none',pattern:'dashed',width:3}};app.state.objects.set('line',line);app.selectObjects(['line']);
+  const target={closest:s=>s==='[data-line]'?{dataset:{line:'line'}}:null};app.vp.onpointerdown({...pointer(app,800,410),target});app.vp.onpointerup({...pointer(app,800,410),target});const input=app.node('created-textarea');input.value='Depende de';app.finishTextEdit();await app.state.pending;
+  const saved=app.state.objects.get('line');assert.equal(saved.text,'Depende de');assert.equal(saved.from,'source');assert.equal(saved.to,'dest');assert.equal(saved.lineStyle.start,'dot');assert.match(app.node('#lineLabels').innerHTML,/Depende de/);
+  app.state.user={role:'viewer'};assert.equal(app.beginTextEdit('line'),undefined);
+});
+test('Estilos de frames e linhas persistem em grupo e desfazem',async()=>{
+  const app=await ui();app.state.objects.set('frame',{...sticky(),id:'frame',type:'frame'});app.state.objects.set('line',geometry.newFreeArrow({x:0,y:0},{x:100,y:10},'line'));app.selectObjects(['frame','line']);
+  app.applyAppearance('frame',{opacity:35,pattern:'dotted',strokeColor:'#f0612d',showText:false,labelPosition:'inside'});app.applyAppearance('line',{start:'dot',end:'arrow',pattern:'dashed',width:4});await app.state.pending;
+  assert.equal(app.state.objects.get('frame').frameStyle.opacity,35);assert.equal(app.state.objects.get('line').lineStyle.start,'dot');app.undo();await app.state.pending;assert.equal(app.state.objects.get('line').lineStyle,undefined);app.redo();await app.state.pending;assert.equal(app.state.objects.get('line').lineStyle.width,4);
+});
+test('Edição inline do roadmap muda apenas a atividade escolhida e remove percentual legado',async()=>{
+  const app=await ui(),object=app.template('roadmap')[0];object.roadmap.tasks[0]={...object.roadmap.tasks[0],progress:100};app.state.objects.set(object.id,object);
+  const values={'[data-inline-title]':'Atividade no quadro','[data-inline-start]':'2026-10-01','[data-inline-end]':'2026-11-15','[data-inline-status]':'in_progress'},form={dataset:{inlineRoadmap:object.id,inlineTask:object.roadmap.tasks[0].id},querySelector:s=>({value:values[s]})};
+  await app.saveInlineRoadmap(form);const saved=app.state.objects.get(object.id);assert.equal(saved.roadmap.tasks[0].title,'Atividade no quadro');assert.equal(saved.roadmap.tasks[0].status,'in_progress');assert.equal(saved.roadmap.tasks[0].progress,undefined);assert.equal(saved.roadmap.tasks[1].title,object.roadmap.tasks[1].title);
+  app.state.user={role:'viewer'};await assert.rejects(app.saveInlineRoadmap(form),/não pode/);
 });

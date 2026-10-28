@@ -1,6 +1,7 @@
 import {arrangeChanges,groupChanges,ungroupChanges,expandGroups,elementLocked,propertyError} from './public/element-properties.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {lineFormat,lineAttributes,frameCss,appearanceChanges} from './public/element-properties.js';
 import {areaBetween,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,connectionAttachment,moveEndpoint,translateObject} from './public/canvas-geometry.js';
 const a={id:'a',type:'sticky',x:100,y:100,w:100,h:80},b={id:'b',type:'rect',x:350,y:100,w:120,h:80},frame={id:'f',type:'frame',x:50,y:50,w:500,h:400};
 test('Seleção funciona em ambas as direções e ignora o frame externo',()=>{const objects=new Map([a,b,frame].map(o=>[o.id,o]));assert.deepEqual(selectionInArea(objects,areaBetween({x:480,y:190},{x:90,y:90})),['a','b']);assert.deepEqual(selectionInArea(objects,{x:0,y:0,w:600,h:500}),['a','b','f']);assert.deepEqual(selectionInArea(objects,{x:201,y:181,w:40,h:20}),[])});
@@ -75,4 +76,11 @@ test('Ímã permite âncoras livres e solta a conexão fora da proximidade',()=>
   assert.equal(connectionAttachment(objects,{x:340,y:180},1),null);assert.equal(connectionAttachment(objects,{x:320,y:220},1),null);
   assert.equal(connectionAttachment(objects,{x:318,y:180},1,{excludeId:'card'}),null);
   const ellipse={...card,id:'ellipse',type:'ellipse'};const curved=connectionAttachment(new Map([[ellipse.id,ellipse]]),{x:270,y:230},1,{targetId:'ellipse'});assert.ok(Math.abs(((curved.point.x-190)/90)**2+((curved.point.y-180)/80)**2-1)<1e-8);
+});
+
+
+test('Pontas e traçados são independentes e estilos rejeitam CSS e valores inválidos',()=>{
+  assert.deepEqual(lineFormat({}),{start:'none',end:'arrow',pattern:'solid',width:2});assert.doesNotMatch(lineAttributes({lineStyle:{start:'none',end:'none'}}),/marker-/);assert.match(lineAttributes({lineStyle:{start:'dot',end:'arrow',pattern:'dotted',width:3}}),/stroke-dasharray="0 9"/);
+  for(const object of [{type:'line',lineStyle:{start:'url(evil)'}},{type:'line',lineStyle:{pattern:'x'}},{type:'line',lineStyle:{width:99}},{type:'frame',frameStyle:{opacity:101}},{type:'frame',frameStyle:{strokeColor:'red;display:none'}},{type:'frame',frameStyle:{showText:'false'}},{type:'sticky',frameStyle:{opacity:0}}])assert.ok(propertyError(object));
+  assert.match(frameCss({color:'#ffffff',frameStyle:{opacity:35,pattern:'solid',strokeColor:'#f0612d'}}),/rgba\(255,255,255,0.35\)/);
 });

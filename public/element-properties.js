@@ -1,8 +1,27 @@
 export const TEXT_FONTS=['Poppins','Arial','Georgia','monospace'];
-export const TEXT_TYPES=['sticky','rect','ellipse','diamond','text','frame'];
+export const TEXT_TYPES=['sticky','rect','ellipse','diamond','text','frame','line'];
+export const LINE_ENDINGS=[['none','Sem ponta'],['arrow','Seta'],['dot','Bolinha'],['diamond','Losango'],['square','Quadrado']];
+export const STROKE_PATTERNS=[['solid','Contínuo'],['dashed','Tracejado'],['dotted','Pontilhado']];
+export function lineFormat(o){return {start:'none',end:'arrow',pattern:'solid',width:2,...o.lineStyle}}
+export function lineMarkerDefs(){return '<defs>'+[['arrow','<path d="M0 0 L10 5 L0 10z"/>'],['dot','<circle cx="5" cy="5" r="4"/>'],['diamond','<path d="M0 5 L5 0 L10 5 L5 10z"/>'],['square','<rect x="1" y="1" width="8" height="8"/>']].map(([id,shape])=>'<marker id="'+id+'" viewBox="0 0 10 10" refX="'+(id==='arrow'?9:5)+'" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" fill="context-stroke">'+shape+'</marker>').join('')+'</defs>'}
+export function frameFormat(o){return {strokeColor:'#9ca994',strokeWidth:2,pattern:'dashed',opacity:0,radius:12,showText:true,labelPosition:'outside',...o.frameStyle}}
+export function lineAttributes(o){const style=lineFormat(o),dash=style.pattern==='dashed'?`${style.width*4} ${style.width*3}`:style.pattern==='dotted'?`0 ${style.width*3}`:'';return `stroke-width="${style.width}" stroke-linecap="round"${dash?` stroke-dasharray="${dash}"`:''}${style.start!=='none'?` marker-start="url(#${style.start})"`:''}${style.end!=='none'?` marker-end="url(#${style.end})"`:''}`}
+export function frameCss(o){const style=frameFormat(o),hex=/^#[a-f\d]{6}$/i.test(o.color)?o.color:'#ffffff',rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));return `background:rgba(${rgb.join(',')},${style.opacity/100})!important;border:${style.strokeWidth}px ${style.pattern==='none'?'none':style.pattern==='solid'?'solid':style.pattern==='dotted'?'dotted':'dashed'} ${style.strokeColor};border-radius:${style.radius}px;`}
+export function appearanceChanges(objects,ids,type,patch){return ids.filter(id=>objects.get(id)?.type===type&&!elementLocked(objects,id)).map(id=>{const o=objects.get(id),key=type==='line'?'lineStyle':'frameStyle';return{id,object:{...o,[key]:{...(o[key]||{}),...patch}}}})}
 export function textFormat(o){return {fontFamily:'Poppins',fontSize:o.type==='text'?(o.h===35?14:25):o.type==='frame'?15:17,color:o.type==='text'?o.color:'#1e131e',bold:o.type==='frame',italic:false,underline:false,align:['sticky','text','frame'].includes(o.type)?'left':'center',vertical:['sticky','text','frame'].includes(o.type)?'top':'middle',...o.textStyle}}
 export function textCss(o){const s=textFormat(o);return `font-family:${TEXT_FONTS.includes(s.fontFamily)?s.fontFamily:'Poppins'};font-size:${Number(s.fontSize)||17}px;font-weight:${s.bold?700:400};font-style:${s.italic?'italic':'normal'};text-decoration:${s.underline?'underline':'none'};text-align:${['left','center','right'].includes(s.align)?s.align:'left'};color:${/^#[a-f\d]{6}$/i.test(s.color)?s.color:'#1e131e'};`}
 export function propertyError(o){
+  if(o.lineStyle!==undefined){
+    const s=o.lineStyle;if(o.type!=='line'||!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(key=>!['start','end','pattern','width'].includes(key)))return 'Estilo de linha inválido.';
+    for(const key of ['start','end'])if(s[key]!==undefined&&!LINE_ENDINGS.some(([value])=>value===s[key]))return 'Ponta da linha inválida.';
+    if(s.pattern!==undefined&&!STROKE_PATTERNS.some(([value])=>value===s.pattern)||s.width!==undefined&&(!Number.isFinite(s.width)||s.width<1||s.width>12))return 'Traçado inválido.';
+  }
+  if(o.frameStyle!==undefined){
+    const s=o.frameStyle;if(o.type!=='frame'||!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(key=>!['strokeColor','strokeWidth','pattern','opacity','radius','showText','labelPosition'].includes(key)))return 'Estilo de frame inválido.';
+    if(s.strokeColor!==undefined&&!/^#[a-f\d]{6}$/i.test(s.strokeColor))return 'Cor do contorno inválida.';
+    for(const [key,min,max]of [['strokeWidth',0,12],['opacity',0,100],['radius',0,32]])if(s[key]!==undefined&&(!Number.isFinite(s[key])||s[key]<min||s[key]>max))return 'Aparência do frame inválida.';
+    if(s.pattern!==undefined&&!['solid','dashed','dotted','none'].includes(s.pattern)||s.showText!==undefined&&typeof s.showText!=='boolean'||s.labelPosition!==undefined&&!['inside','outside'].includes(s.labelPosition))return 'Aparência do frame inválida.';
+  }
   if(o.locked!==undefined&&typeof o.locked!=='boolean')return 'Bloqueio inválido.';
   if(o.groupId!=null&&(typeof o.groupId!=='string'||! /^[\w-]{1,100}$/.test(o.groupId)))return 'Grupo inválido.';
   if(o.textStyle!==undefined){
