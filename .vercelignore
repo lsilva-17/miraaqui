@@ -1,0 +1,14 @@
+.git
+data
+work
+tmp
+outputs
+output
+.env*
+*.sqlite*
+*.log
+*.zip
+test.mjs
+Iniciar-*.cmd
+.agents
+skills-lock.json
