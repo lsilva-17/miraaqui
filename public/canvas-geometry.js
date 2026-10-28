@@ -68,6 +68,26 @@ export function attachmentAt(object,point){
   else anchor={x:side==='left'?0:side==='right'?1:x,y:side==='top'?0:side==='bottom'?1:y};
   return{id:object.id,side,anchor};
 }
+// Match the external blue ports and the edge in screen pixels, at every zoom.
+export function connectionAttachment(objects,point,zoom=1,{targetId=null,excludeId=null}={}){
+  const candidates=[];
+  for(const object of objects.values()){
+    if(['line','pen'].includes(object.type)||object.id===excludeId)continue;
+    let port=null;
+    for(const side of ['top','right','bottom','left']){
+      const edge=edgePoint(object,point,side),normal=normals[side],dx=(point.x-edge.x)*zoom,dy=(point.y-edge.y)*zoom;
+      const along=dx*normal.x+dy*normal.y,across=Math.abs(dx*normal.y-dy*normal.x);
+      const distance=Math.hypot(across,Math.max(0,-along,along-38));
+      if(distance<=12&&(!port||distance<port.distance))port={side,edge,distance};
+    }
+    const attachment=port?{id:object.id,side:port.side,anchor:{x:(port.edge.x-object.x)/object.w,y:(port.edge.y-object.y)/object.h}}:attachmentAt(object,point);
+    const edge=edgePoint(object,point,attachment.side,attachment.anchor),distance=Math.hypot(point.x-edge.x,point.y-edge.y)*zoom;
+    if(!port&&object.id!==targetId&&distance>12)continue;
+    candidates.push({...attachment,point:edge,magnetic:!!port,distance:port?port.distance:distance,hit:object.id===targetId,z:object.type==='frame'?-Infinity:object.z||0});
+  }
+  candidates.sort((a,b)=>Number(b.hit)-Number(a.hit)||a.distance-b.distance||b.z-a.z);
+  return candidates[0]||null;
+}
 export function moveEndpoint(line,which,point,attachment,objects){
   const geometry=connectionGeometry(line,objects);if(!geometry)return {...line};const next=structuredClone(line);
   if(next.free){next.fromPoint={...geometry.start};next.toPoint={...geometry.end};delete next.points;delete next.free}

@@ -12,6 +12,7 @@ dialog{border:1px solid #e2e6da;border-radius:18px;padding:30px;box-shadow:0 22p
 .connection-handle::after{content:'';position:absolute;inset:7px;background:#4262ff;border:3px solid #fff;border-radius:50%;box-sizing:border-box}
 .object.can-connect .connection-handle,.object.connection-target .connection-handle{visibility:visible;opacity:1;pointer-events:auto}
 .connection-handle:hover::after,.connection-handle:focus-visible::after{background:#2146fa;box-shadow:0 0 0 2px #4262ff24}
+.connection-handle.magnetic-port::after{background:#2146fa;box-shadow:0 0 0 5px #4262ff30;transform:scale(1.25)}
 .port-top{top:calc(0px - var(--port-distance));left:50%}.port-right{left:calc(100% + var(--port-distance));top:50%}.port-bottom{top:calc(100% + var(--port-distance));left:50%}.port-left{left:calc(0px - var(--port-distance));top:50%}
 .object.diamond{isolation:isolate;clip-path:none;background:transparent!important}.object.diamond::before{content:'';position:absolute;inset:0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);background:var(--object-color);z-index:-1}
 .object.connection-target{outline:3px solid #8973df;outline-offset:6px}

@@ -12,7 +12,7 @@ async function ui(){
   const node=selector=>{
     if(!nodes.has(selector))nodes.set(selector,{style:{setProperty(){}},dataset:{},classList:{add(){},remove(){},toggle(){}},hidden:true,
       addEventListener(type,fn){listeners.set(selector+':'+type,fn)},setAttribute(){},focus(){},setPointerCapture(){},contains(){return true},
-      getBoundingClientRect(){return {left:0,top:0,width:1200,height:700}},querySelectorAll(){return []}});
+      getBoundingClientRect(){return {left:0,top:0,width:1200,height:700}},querySelector(){return null},querySelectorAll(){return []}});
     return nodes.get(selector);
   };
   const tools=['select','hand','sticky','text','rect','ellipse','diamond','line','pen','frame'].map(tool=>Object.assign(node('tool-'+tool),{dataset:{tool}}));
@@ -161,4 +161,38 @@ test('Visualizador não move objetos, formata ou cria cópias e não vê control
 
 test('Alterações enfileiradas de uma sessão antiga não são enviadas depois de trocar de sessão',async()=>{
   const app=await ui();app.state.objects.set('source',sticky());app.selectObjects(['source']);app.formatSelection({fontSize:30});app.state.authVersion++;app.state.board=null;await assert.rejects(app.state.pending,/sessão mudou/);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0);
+});
+
+
+test('Ambas as pontas encaixam no ponto externo sem hit do DOM, salvam e desfazem',async()=>{
+  for(const endpoint of ['start','end']){
+    const app=await ui();app.state.objects.set('source',sticky());app.state.objects.set('dest',{...sticky(),id:'dest',x:500});
+    const line=geometry.newFreeArrow({x:350,y:330},{x:430,y:370},'line');app.state.objects.set('line',line);app.selectObjects(['line']);
+    const handle={dataset:{endpoint,lineId:'line'}},target={closest:s=>s==='[data-endpoint]'?handle:null};
+    app.vp.onpointerdown({...pointer(app,800,710),target});
+    // The blue port is 38 screen pixels outside the right edge; no object under pointer.
+    const x=100+280*2+38,y=50+180*2+5;
+    app.vp.onpointermove(pointer(app,x,y));assert.match(app.node('#connectionPreview').innerHTML,/#4262ff20/);
+    app.vp.onpointerup(pointer(app,x,y));await app.state.pending;
+    const key=endpoint==='start'?'from':'to',saved=app.state.objects.get('line');assert.equal(saved[key],'source');assert.equal(saved[key+'Side'],'right');
+    assert.deepEqual(JSON.parse(JSON.stringify(geometry.connectionGeometry(saved,app.state.objects)[endpoint])),{x:280,y:180});
+    assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);
+    app.undo();await app.state.pending;assert.equal(app.state.objects.get('line').free,true);
+    app.redo();await app.state.pending;assert.equal(app.state.objects.get('line')[key],'source');
+  }
+});
+test('Reconectar perto da borda preserva posição livre; afastar e cancelar restaura original',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());const line=geometry.newFreeArrow({x:350,y:330},{x:430,y:370},'line');app.state.objects.set('line',line);app.selectObjects(['line']);
+  const target={closest:s=>s==='[data-endpoint]'?{dataset:{endpoint:'start',lineId:'line'}}:null};app.vp.onpointerdown({...pointer(app,800,710),target});
+  app.vp.onpointermove(pointer(app,670,500));assert.equal(app.state.objects.get('line').from,'source');near(app.state.objects.get('line').fromAnchor.y,.78125);
+  app.vp.onpointermove(pointer(app,850,500));assert.equal(app.state.objects.get('line').from,undefined);assert.equal(app.node('#connectionPreview').innerHTML,'');
+  app.finishDrag(true);assert.deepEqual(app.state.objects.get('line'),line);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0);
+});
+
+
+test('Criar ligação reconhece bolinha externa do destino sem criar card extra',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());app.state.objects.set('dest',{...sticky(),id:'dest',x:500});
+  const object={dataset:{id:'source'}},handle={dataset:{side:'right'}},target={closest:s=>s==='[data-id]'?object:s==='.connection-handle'?handle:null};
+  app.vp.onpointerdown({...pointer(app,698,410),target});app.vp.onpointermove(pointer(app,1057,415));app.vp.onpointerup(pointer(app,1057,415));await app.state.pending;
+  assert.equal(app.state.objects.size,3);const line=[...app.state.objects.values()].find(o=>o.type==='line');assert.equal(line.from,'source');assert.equal(line.to,'dest');assert.equal(line.toSide,'left');assert.deepEqual(JSON.parse(JSON.stringify(line.toAnchor)),{x:0,y:.5});assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);
 });

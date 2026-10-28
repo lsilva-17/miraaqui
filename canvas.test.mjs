@@ -1,7 +1,7 @@
 import {arrangeChanges,groupChanges,ungroupChanges,expandGroups,elementLocked,propertyError} from './public/element-properties.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {areaBetween,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,moveEndpoint,translateObject} from './public/canvas-geometry.js';
+import {areaBetween,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,connectionAttachment,moveEndpoint,translateObject} from './public/canvas-geometry.js';
 const a={id:'a',type:'sticky',x:100,y:100,w:100,h:80},b={id:'b',type:'rect',x:350,y:100,w:120,h:80},frame={id:'f',type:'frame',x:50,y:50,w:500,h:400};
 test('Seleção funciona em ambas as direções e ignora o frame externo',()=>{const objects=new Map([a,b,frame].map(o=>[o.id,o]));assert.deepEqual(selectionInArea(objects,areaBetween({x:480,y:190},{x:90,y:90})),['a','b']);assert.deepEqual(selectionInArea(objects,{x:0,y:0,w:600,h:500}),['a','b','f']);assert.deepEqual(selectionInArea(objects,{x:201,y:181,w:40,h:20}),[])});
 test('Conversão de coordenadas respeita deslocamento e zoom',()=>{assert.deepEqual(worldPoint(450,220,{x:150,y:20},2),{x:150,y:100});assert.deepEqual(worldPoint(75,30,{x:-25,y:-20},.5),{x:200,y:100})});
@@ -59,4 +59,20 @@ test('Seta livre pode se reconectar a um bloco e pontas soltas acompanham duplic
   const objects=new Map([[b.id,b]]),line=newFreeArrow({x:10,y:20},{x:200,y:100},'free');
   const attached=moveEndpoint(line,'end',{x:351,y:140},attachmentAt(b,{x:351,y:140}),objects);assert.equal(attached.to,'b');assert.deepEqual(connectionGeometry(attached,objects).start,{x:10,y:20});assert.deepEqual(connectionGeometry(attached,objects).end,{x:350,y:140});
   const translated=translateObject(attached,{x:25,y:35});assert.deepEqual(translated.fromPoint,{x:35,y:55});assert.equal(translated.to,'b');
+});
+
+
+test('Ímã reconhece as quatro bolinhas externas em todos os níveis de zoom',()=>{
+  const card={id:'card',type:'sticky',x:100,y:100,w:180,h:160},objects=new Map([[card.id,card]]);
+  for(const zoom of [.25,1,2,4])for(const [side,edge,normal] of [['top',{x:190,y:100},{x:0,y:-1}],['right',{x:280,y:180},{x:1,y:0}],['bottom',{x:190,y:260},{x:0,y:1}],['left',{x:100,y:180},{x:-1,y:0}]]){
+    const point={x:edge.x+normal.x*42/zoom+normal.y*7/zoom,y:edge.y+normal.y*42/zoom+normal.x*7/zoom},attachment=connectionAttachment(objects,point,zoom);
+    assert.equal(attachment.id,'card');assert.equal(attachment.side,side);assert.equal(attachment.magnetic,true);assert.deepEqual(attachment.point,edge);
+  }
+});
+test('Ímã permite âncoras livres e solta a conexão fora da proximidade',()=>{
+  const card={id:'card',type:'sticky',x:100,y:100,w:180,h:160},objects=new Map([[card.id,card]]);
+  const custom=connectionAttachment(objects,{x:285,y:225},1);assert.equal(custom.id,'card');assert.equal(custom.magnetic,false);assert.deepEqual(custom.point,{x:280,y:225});
+  assert.equal(connectionAttachment(objects,{x:340,y:180},1),null);assert.equal(connectionAttachment(objects,{x:320,y:220},1),null);
+  assert.equal(connectionAttachment(objects,{x:318,y:180},1,{excludeId:'card'}),null);
+  const ellipse={...card,id:'ellipse',type:'ellipse'};const curved=connectionAttachment(new Map([[ellipse.id,ellipse]]),{x:270,y:230},1,{targetId:'ellipse'});assert.ok(Math.abs(((curved.point.x-190)/90)**2+((curved.point.y-180)/80)**2-1)<1e-8);
 });
