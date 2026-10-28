@@ -7,3 +7,6 @@ O logotipo oficial foi obtido do cabeçalho de [caaqui.com](https://www.caaqui.c
 Poppins é servido localmente em quatro pesos. Arquivos obtidos do Google Fonts, com licença SIL Open Font License em `public/fonts/OFL.txt`. Fonte da licença: https://github.com/google/fonts/tree/main/ofl/poppins.
 
 Miraaqui é o nome do produto. A atribuição “por Caaqui” utiliza o arquivo oficial; o logotipo da Caaqui não foi redesenhado.
+
+
+O favicon do Miraaqui combina o símbolo oficial da Caaqui (obtido do favicon de caaqui.com em 28/10/2026) com uma moldura de quadro e os quatro pontos azuis de conexão do produto. O símbolo permanece no arquivo original, incorporado ao SVG; não foi redesenhado. Origem: https://static.wixstatic.com/media/89f289_4d048d9a60e74b228621713a19f6df38%7Emv2.png/v1/fill/w_192%2Ch_192%2Clg_1%2Cusm_0.66_1.00_0.01/89f289_4d048d9a60e74b228621713a19f6df38%7Emv2.png. Versões SVG, ICO e PNG geradas para navegadores e atalhos.

@@ -52,3 +52,6 @@ Para um backup completo, pare o servidor e copie toda a pasta `data` para um loc
 ## Configuração técnica
 
 `PORT` (padrão 4317), `HOST` (padrão 127.0.0.1), `ELO_DATA_DIR` (pasta de armazenamento) e `ELO_SECURE_COOKIE=1` (cookies Secure para HTTPS). Execute `npm test` para validar autenticação, convites, acesso, sincronização, comentários, proteção de origem e persistência após reiniciar. Nenhum `npm install` é necessário.
+
+
+O acesso aceita somente e-mails @caaqui.com, com verificação no servidor para cadastro, login e sessões existentes. Convites continuam obrigatórios; ainda não há confirmação de posse da caixa postal por e-mail ou SSO.

@@ -5,6 +5,7 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {database} from './lib/database.mjs';
+import {allowedEmail} from './lib/access-policy.mjs';
 const scrypt=promisify(rawScrypt),root=path.dirname(fileURLToPath(import.meta.url));
 const id=()=>randomBytes(16).toString('hex'),digest=s=>createHash('sha256').update(s).digest('hex');
 const safeUser=u=>({id:u.id,email:u.email,name:u.name,admin:!!u.admin});
@@ -14,7 +15,7 @@ function text(v,max=200){if(typeof v!=='string'||!v.trim()||v.length>max)status(
 async function body(req){if(req.body&&typeof req.body==='object')return req.body;let input='';for await(const chunk of req){input+=chunk;if(input.length>4_300_000)status(413,'Arquivo muito grande.')}try{return JSON.parse(input||'{}')}catch{status(400,'Dados inválidos.')}}
 async function hashPassword(v){if(typeof v!=='string'||v.length<10||v.length>200)status(400,'Use uma senha de 10 a 200 caracteres.');const salt=id();return salt+':'+(await scrypt(v,salt,64)).toString('hex')}
 function tokenFrom(req){return(req.headers.cookie||'').split(';').map(s=>s.trim()).find(s=>s.startsWith('elo='))?.slice(4)}
-async function auth(db,req){const token=tokenFrom(req);if(!token)return null;return db.one('SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id WHERE token=? AND expires>?',[digest(token),Date.now()])}
+async function auth(db,req){const token=tokenFrom(req);if(!token)return null;const user=await db.one('SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id WHERE token=? AND expires>?',[digest(token),Date.now()]);return user&&allowedEmail(user.email)?user:null}
 async function session(db,res,user){const token=id()+id();await db.query('INSERT INTO sessions VALUES(?,?,?)',[digest(token),user.id,Date.now()+7*86400000]);res.setHeader('Set-Cookie',`elo=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${secure()?'; Secure':''}`)}
 const eventStatement=(board,event)=>['INSERT INTO events(board_id,payload,created) VALUES(?,?,?)',[board,JSON.stringify(event),Date.now()]];
 async function org(db){return(await db.one("SELECT value FROM settings WHERE key='org'"))?.value||'Minha companhia'}
@@ -52,12 +53,13 @@ export async function handler(req,res){
   const url=new URL(req.url,'http://localhost'),p=url.pathname,method=req.method;
   const send=(v,code=200)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(v))};
   try{
-    if(!p.startsWith('/api/')){const file={'/':'index.html','/app.js':'app.js','/canvas-geometry.js':'canvas-geometry.js','/style.css':'style.css','/caaqui.css':'caaqui.css','/brand/caaqui-logo.png':'brand/caaqui-logo.png'}[p]||(/^\/fonts\/poppins-(400|500|600|700)\.ttf$/.test(p)?p.slice(1):null);if(!file)status(404,'Não encontrado.');res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.png')?'image/png':file.endsWith('.ttf')?'font/ttf':'text/html; charset=utf-8');res.end(await readFile(path.join(root,'public',file)));return}
+    if(!p.startsWith('/api/')){const file={'/':'index.html','/app.js':'app.js','/canvas-geometry.js':'canvas-geometry.js','/style.css':'style.css','/caaqui.css':'caaqui.css','/brand/caaqui-logo.png':'brand/caaqui-logo.png','/brand/caaqui-symbol.png':'brand/caaqui-symbol.png','/favicon.svg':'favicon.svg','/favicon.ico':'favicon.ico','/favicon-32.png':'favicon-32.png','/apple-touch-icon.png':'apple-touch-icon.png'}[p]||(/^\/fonts\/poppins-(400|500|600|700)\.ttf$/.test(p)?p.slice(1):null);if(!file)status(404,'Não encontrado.');res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.png')?'image/png':file.endsWith('.svg')?'image/svg+xml':file.endsWith('.ico')?'image/x-icon':file.endsWith('.ttf')?'font/ttf':'text/html; charset=utf-8');res.end(await readFile(path.join(root,'public',file)));return}
     if(!['GET','HEAD'].includes(method)&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)status(403,'Origem inválida.');
     const db=await database();
     if(p==='/api/status'&&method==='GET')return send({setup:!await db.one('SELECT id FROM users LIMIT 1'),org:await org(db)});
     if(['/api/setup','/api/register','/api/login'].includes(p)&&method==='POST'){
       const b=await body(req),email=text(b.email,254).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))status(400,'E-mail inválido.');
+      if(!allowedEmail(email))status(403,'Acesso restrito a e-mails @caaqui.com. Use seu e-mail corporativo.');
       const ip=process.env.VERCEL?String(req.headers['x-forwarded-for']||'unknown').split(',')[0]:req.socket.remoteAddress,bucket=Math.floor(Date.now()/600000),rateKey=digest(ip+':'+email+':'+bucket);
       const rate=await db.one('INSERT INTO auth_attempts(key,attempts,expires) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=auth_attempts.attempts+1 RETURNING attempts',[rateKey,(bucket+1)*600000]);if(rate.attempts>20)status(429,'Muitas tentativas. Aguarde 10 minutos.');
       let user;

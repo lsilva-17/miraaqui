@@ -16,6 +16,8 @@ Para migrar uma instalação local para um banco remoto vazio, use `node --env-f
 
 O cadastro público de administrador é bloqueado na Vercel por padrão. Para inicializar uma instalação completamente nova sem importação, configure `ELO_ADMIN_EMAIL` e um `ELO_SETUP_TOKEN` aleatório; forneça `setupToken` junto à requisição inicial de cadastro de administrador. Remova o token após a configuração. Nunca exponha o token no frontend nem em URLs.
 
+Cadastro, login e sessões existentes aceitam somente e-mails cujo domínio seja exatamente `caaqui.com` (sem subdomínios ou sufixos parecidos). A verificação ocorre no servidor, incluindo a revalidação das conexões de colaboração. Convites de uso único continuam obrigatórios. Esta regra valida o domínio informado; a versão atual ainda não comprova a posse da caixa postal por e-mail ou SSO.
+
 Cookies de sessão são HttpOnly, SameSite=Strict e Secure na Vercel. A API exige autenticação para ler e editar os quadros. A aplicação preserva o modelo de contas e senhas da instalação local; os logins de GitHub/Vercel administram a infraestrutura, não substituem o login do Miraaqui.
 
 ## Colaboração e limites
