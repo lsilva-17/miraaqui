@@ -22,6 +22,10 @@ Cookies de sessão são HttpOnly, SameSite=Strict e Secure na Vercel. A API exig
 
 As alterações são registradas atomicamente junto aos objetos em PostgreSQL. As conexões SSE consultam o registro compartilhado e reconectam periodicamente; a colaboração funciona entre instâncias distintas. A atualização remota costuma levar aproximadamente 1,5 segundo, além da latência do banco. Ao alterar simultaneamente o mesmo objeto, prevalece a última escrita. Presença expira após 30 segundos sem atividade.
 
-Não há CRDT, edição offline, SSO, permissões por quadro, recuperação de senha ou histórico de versões. O timer é pessoal. Frames são organizadores visuais e não agrupam o movimento das notas. Excluir um quadro é permanente. Faça backups no provedor do banco. Para liberar uso corporativo, confira o plano da Vercel: Hobby é limitado a uso pessoal não comercial.
+Com a ferramenta de seleção (V), arraste em uma área vazia para selecionar vários elementos. Shift adiciona elementos à seleção ou alterna um elemento clicado; Ctrl+A seleciona todos. Arraste um dos elementos selecionados para mover o conjunto. Duplicar, excluir, alterar cor e desfazer/refazer também funcionam em conjunto. O retângulo seleciona objetos que toca; frames são selecionados quando ficam completamente dentro dele, permitindo selecionar as notas em seu interior.
+
+Cada bloco, nota, texto, imagem ou frame tem uma bolinha roxa na lateral direita. Arraste-a até outro elemento para conectar. A seta segue os elementos quando são movidos ou redimensionados. Também é possível clicar na bolinha e depois no destino, ou usar a ferramenta L. Soltar no espaço vazio cancela o arraste da conexão. Linhas e traços de caneta não têm bolinhas.
+
+Não há CRDT, edição offline, SSO, permissões por quadro, recuperação de senha ou histórico de versões. O timer é pessoal. Frames são organizadores visuais e não agrupam automaticamente o movimento das notas. Excluir um quadro é permanente. Faça backups no provedor do banco. Para liberar uso corporativo, confira o plano da Vercel: Hobby é limitado a uso pessoal não comercial.
 
 Credenciais, bancos, arquivos temporários e materiais da empresa que não pertencem ao aplicativo são excluídos do Git e da publicação. `npm test` executa testes locais sem acessar a base da Vercel, salvo se você fornecer explicitamente `DATABASE_URL` ao processo.
