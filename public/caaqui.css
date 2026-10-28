@@ -4,6 +4,8 @@
 @font-face{font-family:Poppins;src:url('/fonts/poppins-700.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
 :root{--ink:#1e131e;--muted:#77716f;--line:#e4e0da;--bg:#f2f1ef;--purple:#f0612d;--mint:#cbeef3}
 body{font-family:Poppins,'Segoe UI',sans-serif;color:var(--ink)}
+.sidebar{overflow-y:auto;scrollbar-width:thin}.sidebar>*{flex-shrink:0}.recent-item{padding-top:7px;padding-bottom:7px}
+@media(min-width:761px) and (max-height:850px){.helpbox{display:none}}
 .brand{display:flex;flex-direction:column;align-items:flex-start;gap:3px;letter-spacing:-1.1px;color:#1e131e;line-height:1.15}.brand .product-name{font-size:26px;font-weight:700}.product-by{display:flex;align-items:center;gap:7px;letter-spacing:0;color:#77716f;font-size:9px;font-weight:400}.product-by img{width:70px;height:auto;display:block}
 .workspace{margin-top:23px;background:#faf9f7}.workspace>span{background:#ffede1;color:#a43813}.workspace strong{color:#1e131e}
 .nav.active{background:#ffede1;color:#1e131e}.nav.active>span{color:#dc4e1b}.sideheading,.navlabel{color:#88817d}
