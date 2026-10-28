@@ -1,7 +1,7 @@
-import {worldPoint,areaBetween,edgePoint,connectionGeometry,selectionInArea,deletionIds,duplicateObjects} from './canvas-geometry.js';
+import {worldPoint,areaBetween,edgePoint,connectionGeometry,selectionInArea,deletionIds,duplicateObjects,looseConnectionPath,resizedObject} from './canvas-geometry.js';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],uid=()=>crypto.randomUUID(),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const state={user:null,org:'',boards:[],board:null,objects:new Map(),comments:[],selected:null,selection:new Set(),tool:'select',zoom:1,pan:{x:100,y:90},history:[],redo:[],client:uid(),source:null,dirty:0,pending:Promise.resolve(),online:true,changeVersion:0};
-let toastTimer,authMode='login',setupNeeded=false,drag=null,space=false,connectFrom=null,cursorAt=0,timerTick=null,timerSeconds=300,editing=null,viewBoardToken=0;
+let toastTimer,authMode='login',setupNeeded=false,drag=null,space=false,connectFrom=null,connectFromSide=null,cursorAt=0,timerTick=null,timerSeconds=300,editing=null,viewBoardToken=0;
 async function api(p,options={}){const r=await fetch('/api'+p,{...options,headers:{'Content-Type':'application/json',...options.headers}});const data=await r.json();if(!r.ok){if(r.status===401&&state.user){state.user=null;state.source?.close();showAuth('login')}throw new Error(data.error||'Não foi possível concluir.')}return data}
 const post=(p,b)=>api(p,{method:'POST',body:JSON.stringify(b)});
 function toast(s){$('#toast').textContent=s;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),4200)}
@@ -34,9 +34,11 @@ function getBounds(os=[...state.objects.values()].filter(o=>o.type!=='line')){if
 function linePath(o){return connectionGeometry(o,state.objects)?.path||''}
 function selectionIds(){return[...state.selection].filter(id=>state.objects.has(id))}
 function setSelection(ids){state.selection=new Set(ids);state.selected=ids[0]||null}
+function resizeHandles(){return ['nw','ne','se','sw'].map(corner=>'<span class="resize resize-'+corner+'" data-corner="'+corner+'"></span>').join('')}
+function connectionHandles(o){return [['top','lado superior'],['right','lado direito'],['bottom','lado inferior'],['left','lado esquerdo']].map(([side,label])=>'<button type="button" class="connection-handle port-'+side+'" data-side="'+side+'" aria-label="Conectar '+esc(o.text?.slice(0,50)||'elemento')+' pelo '+label+'" title="Arraste para criar uma seta"></button>').join('')}
 function syncSelection(){
   const ids=selectionIds(),single=ids.length===1;state.selected=ids[0]||null;
-  $$('.object').forEach(el=>{const selected=state.selection.has(el.dataset.id);el.classList.toggle('selected',selected);const handle=el.querySelector('.resize');if(!selected||!single)handle?.remove();else if(!handle){const span=document.createElement('span');span.className='resize';el.append(span)}});
+  $$('.object').forEach(el=>{const selected=state.selection.has(el.dataset.id);el.classList.toggle('selected',selected);el.classList.toggle('can-connect',selected&&single);if(!selected||!single)el.querySelectorAll('.resize').forEach(handle=>handle.remove());else if(!el.querySelector('.resize'))el.insertAdjacentHTML('beforeend',resizeHandles())});
   $$('[data-line]').forEach(el=>{const o=state.objects.get(el.dataset.line);el.setAttribute('stroke',state.selection.has(o.id)?'#8973df':safeColor(o.color))});
   $('#selectionbar').hidden=!ids.length;$('#selectionCount').textContent=ids.length===1?'1 selecionado':ids.length+' selecionados';
   if(ids.length)$('#fillColor').value=safeColor(state.objects.get(ids[0]).color);
@@ -47,7 +49,7 @@ function selectObjects(ids){setSelection(ids);syncSelection()}
 function selectObject(id){selectObjects(id?[id]:[])}
 function render(){
   if(editing)return;const selected=state.selection,single=selectionIds().length===1;
-  $('#objects').innerHTML=[...state.objects.values()].filter(o=>!['line','pen'].includes(o.type)).sort((a,b)=>(a.type==='frame'?-1:0)-(b.type==='frame'?-1:0)||(a.z||0)-(b.z||0)).map(o=>`<div id="obj-${o.id}" data-id="${o.id}" class="object ${o.type} ${selected.has(o.id)?'selected':''}" style="left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px;background:${safeColor(o.color)};--object-color:${safeColor(o.color)};${o.type==='text'?`color:${safeColor(o.color)};`:''}">${o.type==='image'?`<img src="${esc(o.src)}" alt="Imagem do quadro">`:`<span class="label">${esc(o.text||'')}</span>`}<button type="button" class="connection-handle" aria-label="Conectar ${esc(o.text?.slice(0,50)||'elemento')} a outro elemento" title="Arraste para criar uma seta"></button>${selected.has(o.id)&&single?'<span class="resize"></span>':''}</div>`).join('');
+  $('#objects').innerHTML=[...state.objects.values()].filter(o=>!['line','pen'].includes(o.type)).sort((a,b)=>(a.type==='frame'?-1:0)-(b.type==='frame'?-1:0)||(a.z||0)-(b.z||0)).map(o=>`<div id="obj-${o.id}" data-id="${o.id}" class="object ${o.type} ${selected.has(o.id)?'selected':''}" style="left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px;background:${safeColor(o.color)};--object-color:${safeColor(o.color)};${o.type==='text'?`color:${safeColor(o.color)};`:''}">${o.type==='image'?`<img src="${esc(o.src)}" alt="Imagem do quadro">`:`<span class="label">${esc(o.text||'')}</span>`}${connectionHandles(o)}${selected.has(o.id)&&single?resizeHandles():''}</div>`).join('');
   $('#links').innerHTML='<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="context-stroke"/></marker></defs>'+[...state.objects.values()].filter(o=>o.type==='line').map(o=>`<path data-line="${o.id}" d="${linePath(o)}" fill="none" stroke="${selected.has(o.id)?'#8973df':safeColor(o.color)}" stroke-width="2" marker-end="url(#arrow)" style="pointer-events:stroke;cursor:pointer"/>`).join('');
   $('#ink').innerHTML=[...state.objects.values()].filter(o=>o.type==='pen').map(o=>`<path data-line="${o.id}" d="${o.points.map((p,i)=>(i?'L':'M')+(o.x+p[0]*o.w)+' '+(o.y+p[1]*o.h)).join(' ')}" fill="none" stroke="${selected.has(o.id)?'#8973df':safeColor(o.color)}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:stroke;cursor:pointer"/>`).join('');
   $('#objectCount').textContent=state.objects.size+' objetos';$('#emptyHint').hidden=state.objects.size>0;
@@ -59,7 +61,7 @@ function localPoint(e){const r=$('#viewport').getBoundingClientRect();return wor
 function fit(){const b=getBounds(),r=$('#viewport').getBoundingClientRect();state.zoom=Math.max(.1,Math.min(1,(r.width-180)/(b.w+40),(r.height-160)/(b.h+60)));state.pan={x:(r.width-b.w*state.zoom)/2-b.x*state.zoom,y:(r.height-b.h*state.zoom)/2-b.y*state.zoom};transform()}
 function zoom(f,cx,cy){const r=$('#viewport').getBoundingClientRect();cx??=r.width/2;cy??=r.height/2;const z=Math.max(.1,Math.min(4,state.zoom*f)),ratio=z/state.zoom;state.pan={x:cx-(cx-state.pan.x)*ratio,y:cy-(cy-state.pan.y)*ratio};state.zoom=z;transform()}
 $('#zoomIn').onclick=()=>zoom(1.2);$('#zoomOut').onclick=()=>zoom(1/1.2);$('#fitBtn').onclick=$('#zoomLabel').onclick=fit;
-function setTool(tool){state.tool=tool;connectFrom=null;$$('[data-tool]').forEach(b=>b.classList.toggle('chosen',b.dataset.tool===tool));$('#viewport').style.cursor=tool==='hand'?'grab':tool==='select'?'default':'crosshair';if(tool==='line')toast('Clique no primeiro objeto e depois no segundo para conectar.')}
+function setTool(tool){state.tool=tool;connectFrom=null;connectFromSide=null;$$('[data-tool]').forEach(b=>b.classList.toggle('chosen',b.dataset.tool===tool));$('#viewport').style.cursor=tool==='hand'?'grab':tool==='select'?'default':'crosshair';if(tool==='line')toast('Clique no primeiro objeto e depois no segundo para conectar.')}
 $$('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
 function apply(changes){state.changeVersion++;for(const c of changes){if(c.object)state.objects.set(c.id,structuredClone(c.object));else state.objects.delete(c.id)}setSelection(selectionIds())}
 function updateSave(){$('#saveState').textContent=!state.online?'Reconectando…':state.dirty?'Salvando…':'Tudo salvo';$('#saveState').style.color=state.dirty||!state.online?'#bb9655':'#8c9885'}
@@ -71,23 +73,25 @@ vp.addEventListener('wheel',e=>{e.preventDefault();if(e.ctrlKey||e.metaKey){cons
 function connectionTarget(e,from){const p=localPoint(e);for(const el of document.elementsFromPoint(e.clientX,e.clientY)){const card=el.closest?.('.object'),object=state.objects.get(card?.dataset.id);if(!object||object.id===from)continue;if(object.type==='frame'&&!el.closest('.label')&&!el.closest('.connection-handle')){const margin=10/state.zoom;if(p.x>object.x+margin&&p.x<object.x+object.w-margin&&p.y>object.y+margin&&p.y<object.y+object.h-margin)continue}return object.id}return null}
 function drawMarquee(start,end){const r=areaBetween(start,end);Object.assign($('#selectionRect').style,{left:r.x*state.zoom+state.pan.x+'px',top:r.y*state.zoom+state.pan.y+'px',width:r.w*state.zoom+'px',height:r.h*state.zoom+'px'});$('#selectionRect').hidden=false}
 function clearConnectionPreview(){$('#connectionPreview').innerHTML='';$$('.connection-target').forEach(el=>el.classList.remove('connection-target'))}
+function connectionSide(e,to){if(!to)return null;for(const el of document.elementsFromPoint(e.clientX,e.clientY)){const handle=el.closest?.('.connection-handle');if(handle?.closest('[data-id]')?.dataset.id===to)return handle.dataset.side}return null}
 function drawConnectionPreview(e){
-  clearConnectionPreview();const from=state.objects.get(drag.from);if(!from)return;
-  const to=connectionTarget(e,drag.from);drag.to=to;
+  const from=state.objects.get(drag.from);if(!from)return;
+  const to=connectionTarget(e,drag.from),toSide=connectionSide(e,to);drag.to=to;drag.toSide=toSide;clearConnectionPreview();
   let path;
-  if(to){path=connectionGeometry({from:drag.from,to,fromSide:'right'},state.objects)?.path;document.getElementById('obj-'+to)?.classList.add('connection-target')}
-  else{const a=edgePoint(from,drag.point,'right'),b=drag.point,d=Math.max(45,Math.min(180,Math.hypot(b.x-a.x,b.y-a.y)/2));path=`M${a.x} ${a.y} C${a.x+d} ${a.y} ${b.x-d} ${b.y} ${b.x} ${b.y}`}
-  $('#connectionPreview').innerHTML=`<path d="${path||''}" fill="none" stroke="#8973df" stroke-width="2.5" stroke-dasharray="7 4" marker-end="url(#arrow)"/>`;
+  if(to){path=connectionGeometry({from:drag.from,to,fromSide:drag.side,toSide},state.objects)?.path;document.getElementById('obj-'+to)?.classList.add('connection-target')}
+  else path=looseConnectionPath(from,drag.point,drag.side);
+  $('#connectionPreview').innerHTML='<path d="'+(path||'')+'" fill="none" stroke="#4262ff" stroke-width="2.5" stroke-dasharray="7 4" marker-end="url(#arrow)"/>';
 }
-function connectObjects(from,to,fromSide){if(!from||!to||from===to||!state.objects.has(from)||!state.objects.has(to))return;const o=make('line',0,0,'','#839477',1,1);o.from=from;o.to=to;if(fromSide)o.fromSide=fromSide;setSelection([o.id]);doCommit([{id:o.id,object:o}])}
+function connectObjects(from,to,fromSide,toSide){if(!from||!to||from===to||!state.objects.has(from)||!state.objects.has(to))return;const o=make('line',0,0,'','#839477',1,1);o.from=from;o.to=to;if(fromSide)o.fromSide=fromSide;if(toSide)o.toSide=toSide;setSelection([o.id]);doCommit([{id:o.id,object:o}])}
 vp.onpointerdown=e=>{
   if(e.button!==0&&e.button!==1)return;
   if(editing){if(!e.target.closest('[contenteditable]'))document.activeElement.blur();return}
   const p=localPoint(e);let target=e.target.closest('[data-id]');const path=e.target.closest('[data-line]'),handle=e.target.closest('.connection-handle');let oid=target?.dataset.id||path?.dataset.line;
   e.preventDefault();vp.focus({preventScroll:true});
   if(state.tool==='hand'||space||e.button===1){drag={mode:'pan',x:e.clientX,y:e.clientY,pan:{...state.pan}};vp.setPointerCapture(e.pointerId);return}
-  if(handle&&oid){selectObject(oid);drag={mode:'connect',from:oid,start:p,point:p,moved:false};vp.setPointerCapture(e.pointerId);drawConnectionPreview(e);return}
-  if(state.tool==='line'){if(!oid||['line','pen'].includes(state.objects.get(oid).type))return;if(!connectFrom){connectFrom=oid;selectObject(oid)}else if(oid!==connectFrom){connectObjects(connectFrom,oid);setTool('select')}return}
+  if(state.tool==='line'&&connectFrom&&handle&&oid&&oid!==connectFrom){connectObjects(connectFrom,oid,connectFromSide,handle.dataset.side);setTool('select');return}
+  if(handle&&oid){selectObject(oid);drag={mode:'connect',from:oid,side:handle.dataset.side,start:p,point:p,moved:false};vp.setPointerCapture(e.pointerId);drawConnectionPreview(e);return}
+  if(state.tool==='line'){if(!oid||['line','pen'].includes(state.objects.get(oid).type))return;if(!connectFrom){connectFrom=oid;selectObject(oid)}else if(oid!==connectFrom){connectObjects(connectFrom,oid,connectFromSide);setTool('select')}return}
   if(state.tool==='select'){
     const object=state.objects.get(oid);
     if(object?.type==='frame'&&!e.target.closest('.label')&&!e.target.closest('.resize')){const margin=10/state.zoom;if(p.x>object.x+margin&&p.x<object.x+object.w-margin&&p.y>object.y+margin&&p.y<object.y+object.h-margin){target=null;oid=null}}
@@ -95,7 +99,7 @@ vp.onpointerdown=e=>{
     let ids=selectionIds();
     if(e.shiftKey){ids=ids.includes(oid)?ids.filter(id=>id!==oid):[...ids,oid];selectObjects(ids);if(!ids.includes(oid))return}
     else if(!ids.includes(oid))selectObject(oid);else selectObjects([oid,...ids.filter(id=>id!==oid)]);
-    if(e.target.closest('.resize')&&selectionIds().length===1){drag={mode:'resize',id:oid,start:p,objects:[structuredClone(state.objects.get(oid))],moved:false}}
+    if(e.target.closest('.resize')&&selectionIds().length===1){drag={mode:'resize',id:oid,corner:e.target.closest('.resize').dataset.corner||'se',start:p,objects:[structuredClone(state.objects.get(oid))],moved:false}}
     else{const objects=selectionIds().map(id=>state.objects.get(id)).filter(o=>o.type!=='line').map(o=>structuredClone(o));if(!objects.length)return;drag={mode:'move',start:p,objects,moved:false}}
     vp.setPointerCapture(e.pointerId);return;
   }
@@ -110,13 +114,13 @@ vp.onpointermove=e=>{
   if(drag.mode==='pan'){state.pan={x:drag.pan.x+e.clientX-drag.x,y:drag.pan.y+e.clientY-drag.y};transform()}
   if(drag.mode==='marquee'&&drag.moved){drawMarquee(drag.start,p);selectObjects([...new Set([...drag.base,...selectionInArea(state.objects,areaBetween(drag.start,p))])])}
   if(drag.mode==='connect'){drag.point=p;drawConnectionPreview(e)}
-  if((drag.mode==='move'||drag.mode==='resize')&&drag.moved){for(const original of drag.objects){if(!state.objects.has(original.id))continue;const o=structuredClone(original);if(drag.mode==='move'){o.x+=p.x-drag.start.x;o.y+=p.y-drag.start.y}else{o.w=Math.max(50,o.w+p.x-drag.start.x);o.h=Math.max(35,o.h+p.y-drag.start.y)}state.objects.set(o.id,o)}render()}
+  if((drag.mode==='move'||drag.mode==='resize')&&drag.moved){for(const original of drag.objects){if(!state.objects.has(original.id))continue;const o=structuredClone(original);if(drag.mode==='move'){o.x+=p.x-drag.start.x;o.y+=p.y-drag.start.y}else Object.assign(o,resizedObject(original,{x:p.x-drag.start.x,y:p.y-drag.start.y},drag.corner));state.objects.set(o.id,o)}render()}
   if(drag.mode==='pen'){drag.points.push(p);$('#ink').innerHTML+=`<path d="M${drag.points.at(-2).x} ${drag.points.at(-2).y} L${p.x} ${p.y}" stroke="#506944" stroke-width="3" fill="none"/>`}
 };
 function finishDrag(cancel=false,event){
-  if(!drag)return;const d=drag;drag=null;$('#selectionRect').hidden=true;clearConnectionPreview();
+  if(!drag)return;const d=drag,dropTarget=d.mode==='connect'&&event?connectionTarget(event,d.from):d.to,dropSide=d.mode==='connect'&&event?connectionSide(event,dropTarget):d.toSide;drag=null;$('#selectionRect').hidden=true;clearConnectionPreview();
   if(d.mode==='marquee'){if(cancel)selectObjects(d.previous);return}
-  if(d.mode==='connect'){if(cancel)return;const to=event?connectionTarget(event,d.from):d.to;if(to)connectObjects(d.from,to,'right');else if(!d.moved){setTool('line');connectFrom=d.from;toast('Clique no elemento de destino para criar a seta.')}return}
+  if(d.mode==='connect'){if(cancel)return;const to=dropTarget;if(to)connectObjects(d.from,to,d.side,dropSide);else if(!d.moved){setTool('line');connectFrom=d.from;connectFromSide=d.side;toast('Clique no elemento de destino para criar a seta.')}return}
   if(d.mode==='move'||d.mode==='resize'){
     const before=d.objects.filter(o=>state.objects.has(o.id));
     if(cancel){for(const o of before)state.objects.set(o.id,o);render();return}
@@ -130,7 +134,7 @@ function finishDrag(cancel=false,event){
   }
 }
 vp.onpointerup=e=>finishDrag(false,e);vp.onpointercancel=()=>finishDrag(true);
-vp.addEventListener('click',e=>{if(e.detail!==0||!e.target.closest('.connection-handle'))return;const from=e.target.closest('[data-id]')?.dataset.id;if(from){setTool('line');connectFrom=from;selectObject(from);toast('Clique no elemento de destino para criar a seta.')}});
+vp.addEventListener('click',e=>{if(e.detail!==0||!e.target.closest('.connection-handle'))return;const from=e.target.closest('[data-id]')?.dataset.id;if(from){setTool('line');connectFrom=from;connectFromSide=e.target.closest('.connection-handle').dataset.side;selectObject(from);toast('Clique no elemento de destino para criar a seta.')}});
 vp.ondblclick=e=>{
   if(e.target.closest('.connection-handle'))return;
   const el=e.target.closest('[data-id]')||document.getElementById('obj-'+state.selected),o=state.objects.get(el?.dataset.id);if(!o||o.type==='image')return;

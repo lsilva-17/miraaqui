@@ -9,7 +9,15 @@ export function segmentInArea(a,b,r){
     const t1=(min-start)/delta,t2=(max-start)/delta;low=Math.max(low,Math.min(t1,t2));high=Math.min(high,Math.max(t1,t2));if(low>high)return false;
   }return true;
 }
-const normals={left:{x:-1,y:0},right:{x:1,y:0},top:{x:0,y:-1},bottom:{x:0,y:1}};
+const normals=Object.assign(Object.create(null),{left:{x:-1,y:0},right:{x:1,y:0},top:{x:0,y:-1},bottom:{x:0,y:1}});
+export function looseConnectionPath(o,point,side='right'){
+  const normal=normals[side]||normals.right,start=edgePoint(o,point,side),distance=Math.max(45,Math.min(180,Math.hypot(point.x-start.x,point.y-start.y)/2));
+  return `M${start.x} ${start.y} C${start.x+normal.x*distance} ${start.y+normal.y*distance} ${point.x-normal.x*distance} ${point.y-normal.y*distance} ${point.x} ${point.y}`;
+}
+export function resizedObject(original,delta,corner='se'){
+  const west=corner.includes('w'),north=corner.includes('n'),w=Math.max(50,original.w+(west?-delta.x:delta.x)),h=Math.max(35,original.h+(north?-delta.y:delta.y));
+  return{...original,w,h,x:west?original.x+original.w-w:original.x,y:north?original.y+original.h-h:original.y};
+}
 export function edgePoint(o,target,side){
   const center={x:o.x+o.w/2,y:o.y+o.h/2};
   if(normals[side])return{x:center.x+normals[side].x*o.w/2,y:center.y+normals[side].y*o.h/2};
