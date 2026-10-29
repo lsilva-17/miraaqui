@@ -91,7 +91,7 @@ Na ferramenta de seleção, clique no elemento para selecionar e clique novament
 
 Selecione um frame ou linha e use “Estilo” na barra inferior ou “Estilo de linha / frame…” no botão direito. Frames permitem cor e opacidade do fundo, cor/espessura/padrão da borda, arredondamento e texto visível ou oculto, dentro ou acima do frame. Os frames ficam atrás das conexões e dos demais elementos.
 
-Ao clicar no ícone de linha ou pressionar L, arraste diretamente no quadro, sem abrir janela. Novas linhas são retas, contínuas, pretas e sem pontas. Ao selecionar uma ou várias linhas, a barra inferior traz ajustes imediatos de cor, forma (reta, angular ou curva), traçado, espessura de 1 a 12 e pontas independentes (nenhuma, seta, bolinha, losango ou quadrado). Também é possível inverter pontas e editar o texto. Cada ajuste pode ser desfeito/refeito, sem alterar o padrão das próximas linhas. Linhas anteriores mantêm sua aparência até serem editadas.
+Ao clicar no ícone de linha ou pressionar L, arraste diretamente no quadro, sem abrir janela. Novas linhas são retas, contínuas, pretas e com ponta de seta no fim. Ao selecionar uma ou várias linhas, a barra inferior traz ajustes imediatos de cor, forma (reta, angular ou curva), traçado, espessura de 1 a 12 e pontas independentes (nenhuma, seta, bolinha, losango ou quadrado). Também é possível inverter pontas e editar o texto. Cada ajuste pode ser desfeito/refeito, sem alterar o padrão das próximas linhas. Linhas anteriores mantêm sua aparência até serem editadas.
 
 Segure Espaço para usar a mão temporariamente e arraste em qualquer parte do quadro, inclusive sobre elementos ou o roadmap. O cursor muda para mão e a ferramenta fica destacada enquanto a tecla estiver pressionada. Ao soltar Espaço, o movimento temporário para e a ferramenta anterior retorna. Digitar espaços em campos de texto continua funcionando normalmente. Se a tecla for pressionada durante um arraste de objeto, a prévia é cancelada antes de mover a tela.
 
@@ -108,3 +108,8 @@ Orientação do usuário: referências de Nike, Volvo, Tesla e Apple como crité
 ### Cursores Aero · Essencial
 
 Direção escolhida pelo usuário: Aero em versão mais sutil. A seleção usa o recorte Aero com mais área clara e menos massa escura; o cursor de mover a tela reaproveita a silhueta exata da mão da barra de ferramentas, com traço reduzido. A família completa permanece em 24 px. A mão aberta é monocromática, e os detalhes em laranja–âmbar ficam restritos aos demais estados. Os pontos de clique e o retorno da mão ao soltar Espaço continuam preservados.
+
+
+### Criar um card conectado com um clique
+
+Clique e solte uma bolinha azul para criar um card ao lado correspondente, já ligado à origem. Se o espaço estiver ocupado, o novo card é deslocado para uma área livre próxima. Arrastar a bolinha continua permitindo escolher o local de criação ou conectar a um elemento existente. A seta tem ponta no fim por padrão; seu estilo pode ser alterado na barra inferior. Card e seta são desfeitos juntos.

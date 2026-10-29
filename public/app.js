@@ -1,6 +1,6 @@
-import {worldPoint,areaBetween,newFrameFromDrag,edgePoint,connectionGeometry,lineLabelPoint,selectionInArea,deletionIds,duplicateObjects,resizedObject,newConnectedCard,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,connectionAttachment,moveEndpoint,translateObject} from './canvas-geometry.js';import {TEXT_FONTS,TEXT_TYPES,textFormat,textCss,expandGroups,elementLocked,groupChanges,ungroupChanges,lockChanges,formatChanges,layerChanges,arrangeChanges,propertyError,STROKE_PATTERNS,DEFAULT_FRAME_STYLE,lineFormat,frameFormat,lineAttributes,lineMarkerDefs,frameCss,appearanceChanges} from './element-properties.js';import {ROADMAP_VIEWS,TASK_STATUSES,taskStatus,newRoadmap,roadmapHtml,roadmapLayout,roadmapError,roadmapSvg} from './roadmap.js';
+import {worldPoint,areaBetween,newFrameFromDrag,edgePoint,connectionGeometry,lineLabelPoint,selectionInArea,deletionIds,duplicateObjects,resizedObject,newConnectedCard,quickConnectedCardPoint,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,connectionAttachment,moveEndpoint,translateObject} from './canvas-geometry.js';import {TEXT_FONTS,TEXT_TYPES,textFormat,textCss,expandGroups,elementLocked,groupChanges,ungroupChanges,lockChanges,formatChanges,layerChanges,arrangeChanges,propertyError,STROKE_PATTERNS,DEFAULT_FRAME_STYLE,lineFormat,frameFormat,lineAttributes,lineMarkerDefs,frameCss,appearanceChanges} from './element-properties.js';import {ROADMAP_VIEWS,TASK_STATUSES,taskStatus,newRoadmap,roadmapHtml,roadmapLayout,roadmapError,roadmapSvg} from './roadmap.js';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],uid=()=>crypto.randomUUID(),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state={user:null,org:'',boards:[],board:null,objects:new Map(),comments:[],selected:null,selection:new Set(),tool:'select',zoom:1,pan:{x:100,y:90},history:[],redo:[],client:uid(),source:null,dirty:0,pending:Promise.resolve(),online:true,changeVersion:0,authVersion:0,clipboard:null,styleClipboard:null,lineDefaults:{start:'none',end:'none',pattern:'solid',width:2,route:'straight'}};
+const state={user:null,org:'',boards:[],board:null,objects:new Map(),comments:[],selected:null,selection:new Set(),tool:'select',zoom:1,pan:{x:100,y:90},history:[],redo:[],client:uid(),source:null,dirty:0,pending:Promise.resolve(),online:true,changeVersion:0,authVersion:0,clipboard:null,styleClipboard:null,lineDefaults:{start:'none',end:'arrow',pattern:'solid',width:2,route:'straight'}};
 let toastTimer,authMode='login',setupNeeded=false,drag=null,space=false,lastCanvasPointer=null,connectFrom=null,connectFromSide=null,cursorAt=0,timerTick=null,timerSeconds=300,editing=null,textSession=null,viewBoardToken=0;
 async function api(p,options={}){const r=await fetch('/api'+p,{...options,headers:{'Content-Type':'application/json',...options.headers}});const data=await r.json();if(!r.ok){if(r.status===401&&state.user)endLocalSession();throw new Error(data.error||'Não foi possível concluir.')}return data}
 const post=(p,b)=>api(p,{method:'POST',body:JSON.stringify(b)});
@@ -39,7 +39,7 @@ function frameSvg(o){const s=frameFormat(o),dash=s.pattern==='dashed'?'8 6':s.pa
 function selectionIds(){return[...state.selection].filter(id=>state.objects.has(id))}
 function setSelection(ids){state.selection=new Set(ids);state.selected=ids[0]||null}
 function resizeHandles(){return ['nw','ne','se','sw'].map(corner=>'<span class="resize resize-'+corner+'" data-corner="'+corner+'"></span>').join('')}
-function connectionHandles(o){return [['top','lado superior'],['right','lado direito'],['bottom','lado inferior'],['left','lado esquerdo']].map(([side,label])=>'<button type="button" class="connection-handle port-'+side+'" data-side="'+side+'" aria-label="Conectar '+esc(o.text?.slice(0,50)||'elemento')+' pelo '+label+'" title="Arraste para criar uma seta"></button>').join('')}
+function connectionHandles(o){return [['top','lado superior'],['right','lado direito'],['bottom','lado inferior'],['left','lado esquerdo']].map(([side,label])=>'<button type="button" class="connection-handle port-'+side+'" data-side="'+side+'" aria-label="Conectar '+esc(o.text?.slice(0,50)||'elemento')+' pelo '+label+'" title="Clique para criar um elemento conectado ou arraste para conectar"></button>').join('')}
 function syncSelection(){
   const ids=selectionIds(),single=ids.length===1,locked=readOnly()||ids.some(id=>elementLocked(state.objects,id));state.selected=ids[0]||null;
   $$('.object').forEach(el=>{const selected=state.selection.has(el.dataset.id);el.classList.toggle('selected',selected);el.classList.toggle('can-connect',selected&&single&&!readOnly()&&!elementLocked(state.objects,el.dataset.id));if(!selected||!single||readOnly()||elementLocked(state.objects,el.dataset.id))el.querySelectorAll('.resize').forEach(handle=>handle.remove());else if(!el.querySelector('.resize'))el.insertAdjacentHTML('beforeend',resizeHandles())});
@@ -193,6 +193,10 @@ function createCardAtDrop(from,point,side){
   const original=state.objects.get(from);if(!original)return;
   const {card,line}=newConnectedCard(original,point,side,uid);line.lineStyle={...state.lineDefaults};setSelection([card.id]);setTool('select');doCommit([{id:card.id,object:card},{id:line.id,object:line}]);
 }
+function createCardFromPort(from,side){
+  const source=state.objects.get(from);if(!source||readOnly()||elementLocked(state.objects,from))return;
+  createCardAtDrop(from,quickConnectedCardPoint(source,side,state.objects),side);
+}
 function canCreateCardAtDrop(event,from){
   if(!event)return false;const r=vp.getBoundingClientRect();
   if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)return false;
@@ -261,7 +265,7 @@ function finishDrag(cancel=false,event){
   if(d.mode==='alt-copy'){const note=state.objects.get(d.id);if(cancel||!d.created||!note||Math.hypot(note.x-d.source.x,note.y-d.source.y)*state.zoom<6){if(d.created)state.objects.delete(d.id);if(cancel)setSelection(d.previous);else selectObject(d.source.id);render();return}doCommit([{id:note.id,object:structuredClone(note)}],true,[{id:note.id,object:null}]);return}
   if(d.mode==='edit-click'){if(!cancel&&!d.moved&&d.editId)beginTextEdit(d.editId);return}
   if(d.mode==='marquee'){if(cancel)selectObjects(d.previous);return}
-  if(d.mode==='connect'){if(cancel)return;const to=dropTarget,point=d.point;if(to)connectObjects(d.from,to,d.side,dropSide,d.attachment?.anchor);else if(d.moved&&Math.hypot(point.x-d.start.x,point.y-d.start.y)*state.zoom>=6&&canCreateCardAtDrop(event,d.from))createCardAtDrop(d.from,point,d.side);else if(!d.moved){setTool('line');connectFrom=d.from;connectFromSide=d.side;toast('Clique no elemento de destino para criar a seta.')}return}
+  if(d.mode==='connect'){if(cancel)return;if(!d.moved||Math.hypot(d.point.x-d.start.x,d.point.y-d.start.y)*state.zoom<6){createCardFromPort(d.from,d.side);return}const to=dropTarget,point=d.point;if(to)connectObjects(d.from,to,d.side,dropSide,d.attachment?.anchor);else if(Math.hypot(point.x-d.start.x,point.y-d.start.y)*state.zoom>=6&&canCreateCardAtDrop(event,d.from))createCardAtDrop(d.from,point,d.side);return}
   if(d.mode==='move'||d.mode==='resize'){
     if(d.mode==='move'&&!cancel&&!d.moved&&d.toggleOnClick)selectObjects(selectionIds().filter(id=>id!==d.toggleOnClick));
     const before=d.objects.filter(o=>state.objects.has(o.id));
@@ -277,7 +281,7 @@ function finishDrag(cancel=false,event){
   }
 }
 vp.onpointerup=e=>finishDrag(false,e);vp.onpointercancel=()=>finishDrag(true);
-vp.addEventListener('click',e=>{if(e.detail!==0||!e.target.closest('.connection-handle'))return;const from=e.target.closest('[data-id]')?.dataset.id;if(from&&!elementLocked(state.objects,from)){setTool('line');connectFrom=from;connectFromSide=e.target.closest('.connection-handle').dataset.side;selectObject(from);toast('Clique no elemento de destino para criar a seta.')}});
+vp.addEventListener('click',e=>{if(e.detail!==0||!e.target.closest('.connection-handle'))return;const from=e.target.closest('[data-id]')?.dataset.id;if(from)createCardFromPort(from,e.target.closest('.connection-handle').dataset.side)});
 vp.ondblclick=e=>{if(editing||e.target.closest('.connection-handle')||e.target.closest('[data-roadmap-view],[data-edit-roadmap]'))return;const el=e.target.closest('[data-id]'),path=e.target.closest('[data-line]'),id=el?.dataset.id||path?.dataset.line;if(state.objects.get(id)?.type==='roadmap')editRoadmap(id);else beginTextEdit(id)};
 
 function deleteSelected(){if(readOnly())return toast('Seu acesso permite somente visualização.');const ids=deletionIds(state.objects,selectionIds());if(ids.some(id=>elementLocked(state.objects,id)))return toast('Desbloqueie os elementos antes de excluir.');if(ids.length)doCommit(ids.map(id=>({id,object:null})))}

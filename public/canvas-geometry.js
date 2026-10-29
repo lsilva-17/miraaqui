@@ -35,6 +35,16 @@ export function newConnectedCard(source,point,side,newId){
   const line={id:newId(),type:'line',x:0,y:0,w:1,h:1,text:'',color:DEFAULT_LINE_COLOR,from:source.id,to:card.id,fromSide:side,z:Date.now()+1};
   return{card,line};
 }
+export function quickConnectedCardPoint(source,side,objects){
+  const sameType=['sticky','rect','ellipse','diamond'].includes(source.type),w=sameType?source.w:180,h=sameType?source.h:160,n=normals[side]||normals.right,horizontal=!!n.x;
+  const point={x:source.x+source.w/2+n.x*(source.w/2+w/2+100),y:source.y+source.h/2+n.y*(source.h/2+h/2+100)};
+  const obstacles=[...objects.values()].filter(o=>o.id!==source.id&&!['line','pen','frame'].includes(o.type));
+  for(let i=0;i<=obstacles.length;i++){
+    const box={x:point.x-w/2,y:point.y-h/2,w,h},blocking=obstacles.filter(o=>intersects({x:box.x-20,y:box.y-20,w:w+40,h:h+40},o));if(!blocking.length)return point;
+    if(horizontal)point.y=Math.max(...blocking.map(o=>o.y+o.h))+40+h/2;else point.x=Math.max(...blocking.map(o=>o.x+o.w))+40+w/2;
+  }
+  return point;
+}
 export function emptyNoteCopy(source,id){return{id,type:'sticky',x:source.x,y:source.y,w:source.w,h:source.h,text:'',color:source.color,...(source.textStyle?{textStyle:structuredClone(source.textStyle)}:{}),z:Date.now()}}
 export function newFreeArrow(start,end,id){
   const x=Math.min(start.x,end.x),y=Math.min(start.y,end.y),w=Math.max(1,Math.abs(end.x-start.x)),h=Math.max(1,Math.abs(end.y-start.y));

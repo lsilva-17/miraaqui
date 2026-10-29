@@ -276,9 +276,9 @@ test('Criar frame por cima de elemento bloqueado preserva o elemento e visualiza
 });
 
 
-test('Ferramenta de linha desenha diretamente sem janela e começa preta, reta e sem pontas',async()=>{
+test('Ferramenta de linha desenha diretamente sem janela e começa preta, reta e com seta no fim',async()=>{
   const app=await ui();app.tools.find(t=>t.dataset.tool==='line').onclick();assert.equal(app.state.tool,'line');assert.notEqual(app.node('#modal').open,true);
-  app.vp.onpointerdown(pointer(app,400,300,{blank:true}));app.vp.onpointermove(pointer(app,800,550,{blank:true}));app.vp.onpointerup(pointer(app,800,550,{blank:true}));await app.state.pending;const line=[...app.state.objects.values()][0];assert.equal(line.type,'line');assert.equal(line.color,'#000000');assert.equal(line.lineStyle.start,'none');assert.equal(line.lineStyle.end,'none');assert.equal(line.lineStyle.route,'straight');assert.equal(app.node('#lineQuickbar').hidden,false);
+  app.vp.onpointerdown(pointer(app,400,300,{blank:true}));app.vp.onpointermove(pointer(app,800,550,{blank:true}));app.vp.onpointerup(pointer(app,800,550,{blank:true}));await app.state.pending;const line=[...app.state.objects.values()][0];assert.equal(line.type,'line');assert.equal(line.color,'#000000');assert.equal(line.lineStyle.start,'none');assert.equal(line.lineStyle.end,'arrow');assert.equal(line.lineStyle.route,'straight');assert.equal(app.node('#lineQuickbar').hidden,false);
 });
 test('Barra rápida aplica estilo, inverte pontas e desfaz sem perder texto ou ancoragem',async()=>{
   const app=await ui();app.state.objects.set('source',sticky());app.state.objects.set('dest',{...sticky(),id:'dest',x:500});const line={id:'quick',type:'line',from:'source',to:'dest',fromSide:'right',toSide:'left',x:0,y:0,w:1,h:1,text:'Depende de',color:'#000000'};app.state.objects.set(line.id,line);app.selectObjects([line.id]);
@@ -291,4 +291,23 @@ test('Barra rápida aceita seleção de várias linhas e respeita visualização
   const app=await ui();for(const id of ['a','b'])app.state.objects.set(id,geometry.newFreeArrow({x:0,y:0},{x:100,y:50},id));app.selectObjects(['a','b']);app.node('#lineQuickPattern').onchange({target:{value:'dotted'}});await app.state.pending;assert.ok([...app.state.objects.values()].every(o=>o.lineStyle.pattern==='dotted'));
   app.state.user={role:'viewer'};app.selectObjects(['a','b']);assert.equal(app.node('#lineQuickStart').disabled,true);app.node('#lineQuickStart').onchange({target:{value:'dot'}});await app.state.pending;assert.ok([...app.state.objects.values()].every(o=>!o.lineStyle.start));
   app.state.user=null;app.state.objects.set('a',{...app.state.objects.get('a'),locked:true});app.selectObjects(['a']);assert.equal(app.node('#lineQuickEnd').disabled,true);
+});
+
+test('Clique simples nas quatro bolinhas cria card e seta em uma ação, sem duplicar no evento click',async()=>{
+  for(const side of ['top','right','bottom','left']){
+    const app=await ui();app.state.objects.set('source',sticky());const handle={dataset:{side}},object={dataset:{id:'source'}},target={closest:s=>s==='[data-id]'?object:s==='.connection-handle'?handle:null},event={...pointer(app,320,280),target};
+    app.vp.onpointerdown(event);app.vp.onpointerup(event);app.listeners.get('#viewport:click')({...event,detail:1});await app.state.pending;
+    const card=[...app.state.objects.values()].find(o=>o.type==='sticky'&&o.id!=='source'),line=[...app.state.objects.values()].find(o=>o.type==='line');assert.equal(app.state.objects.size,3);assert.equal(card.color,'#ffffff');assert.equal(line.from,'source');assert.equal(line.to,card.id);assert.equal(line.fromSide,side);assert.equal(line.lineStyle.start,'none');assert.equal(line.lineStyle.end,'arrow');assert.equal(app.state.tool,'select');assert.equal(app.state.selected,card.id);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);
+    const source=app.state.objects.get('source');if(side==='right')assert.ok(card.x>source.x+source.w);if(side==='left')assert.ok(card.x+card.w<source.x);if(side==='top')assert.ok(card.y+card.h<source.y);if(side==='bottom')assert.ok(card.y>source.y+source.h);
+    app.undo();await app.state.pending;assert.equal(app.state.objects.size,1);app.redo();await app.state.pending;assert.equal(app.state.objects.size,3);
+  }
+});
+test('Clique com pequeno movimento funciona; cancelar, bloquear e visualizar não criam cards',async()=>{
+  for(const mode of ['jitter','cancel','locked','viewer','keyboard']){
+    const app=await ui();app.state.objects.set('source',{...sticky(),locked:mode==='locked'});if(mode==='viewer')app.state.user={role:'viewer'};
+    const handle={dataset:{side:'right'}},object={dataset:{id:'source'}},target={closest:s=>s==='[data-id]'?object:s==='.connection-handle'?handle:null},event={...pointer(app,320,280),target};
+    if(mode==='keyboard')app.listeners.get('#viewport:click')({...event,detail:0});else{app.vp.onpointerdown(event);if(mode==='jitter')app.vp.onpointermove({...event,clientX:324});if(mode==='cancel')app.finishDrag(true);else app.vp.onpointerup({...event,clientX:mode==='jitter'?324:320})}
+    await app.state.pending;assert.equal(app.state.objects.size,['jitter','keyboard'].includes(mode)?3:1);
+    if(['locked','viewer'].includes(mode)){app.listeners.get('#viewport:click')({...event,detail:0});await app.state.pending;assert.equal(app.state.objects.size,1)}
+  }
 });
