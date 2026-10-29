@@ -1,5 +1,9 @@
 # Miraaqui
 
+Novos Frames usam fundo branco opaco e contorno contínuo. Selecione o Frame e abra **Estilo do frame** para alterar preenchimento, transparência (0% sólido; 100% transparente), cor, tipo e espessura do contorno, inclusive sem contorno. A janela mostra uma prévia e permite aplicar a vários Frames. Quadros existentes mantêm a aparência salva.
+
+Linhas, setas e desenhos têm uma área invisível de clique de 16 px, inclusive entre os traços. As bordas de Frames, blocos e notas aceitam cliques até 8 px ao redor. A tolerância acompanha o zoom sem engrossar o desenho ou afetar a exportação.
+
 Quadros colaborativos com notas, formas, conexões, desenho livre, imagens, modelos, comentários, presença e cursores compartilhados. Contas individuais e cadastro por convite de uso único. Todos os membros cadastrados acessam os quadros deste espaço.
 
 ## Executar localmente

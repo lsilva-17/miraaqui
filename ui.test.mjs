@@ -12,7 +12,7 @@ async function ui(){
   const nodes=new Map(),requests=[],listeners=new Map();
   const node=selector=>{
     if(!nodes.has(selector))nodes.set(selector,{style:{setProperty(){}},dataset:{},classList:{add(){},remove(){},toggle(){}},hidden:true,
-      addEventListener(type,fn){listeners.set(selector+':'+type,fn)},setAttribute(){},focus(){},select(){},append(){},remove(){},setRangeText(value,start,end){this.value=this.value.slice(0,start)+value+this.value.slice(end)},setPointerCapture(){},contains(){return true},
+      addEventListener(type,fn){listeners.set(selector+':'+type,fn)},setAttribute(){},focus(){},select(){},append(){},remove(){},showModal(){},close(){},setRangeText(value,start,end){this.value=this.value.slice(0,start)+value+this.value.slice(end)},setPointerCapture(){},contains(){return true},
       getBoundingClientRect(){return {left:0,top:0,width:1200,height:700}},querySelector(){return null},querySelectorAll(){return []}});
     return nodes.get(selector);
   };
@@ -224,6 +224,20 @@ test('Estilos de frames e linhas persistem em grupo e desfazem',async()=>{
   const app=await ui();app.state.objects.set('frame',{...sticky(),id:'frame',type:'frame'});app.state.objects.set('line',geometry.newFreeArrow({x:0,y:0},{x:100,y:10},'line'));app.selectObjects(['frame','line']);
   app.applyAppearance('frame',{opacity:35,pattern:'dotted',strokeColor:'#f0612d',showText:false,labelPosition:'inside'});app.applyAppearance('line',{start:'dot',end:'arrow',pattern:'dashed',width:4});await app.state.pending;
   assert.equal(app.state.objects.get('frame').frameStyle.opacity,35);assert.equal(app.state.objects.get('line').lineStyle.start,'dot');app.undo();await app.state.pending;assert.equal(app.state.objects.get('line').lineStyle,undefined);app.redo();await app.state.pending;assert.equal(app.state.objects.get('line').lineStyle.width,4);
+});
+test('Editor de frame salva cores, transparência e contorno em grupo com desfazer',async()=>{
+  const app=await ui(),first=geometry.newFrameFromDrag({x:0,y:0},{x:400,y:300},'frame'),second={...first,id:'second',x:450};app.state.objects.set(first.id,first);app.state.objects.set(second.id,second);app.selectObjects(['frame','second']);
+  const fields={frameFill:'#cbeef3',frameTransparency:'60',framePattern:'none',frameStroke:'#f0612d',frameWidth:'3',frameRadius:'8',frameShowText:'true',frameLabelPosition:'inside'};
+  for(const [key,value]of Object.entries(fields))app.node('#'+key).value=value;
+  app.node('#appearanceBtn').onclick();assert.equal(app.node('#frameStroke').disabled,true);assert.match(app.node('#frameStylePreview').style.cssText,/rgba\(203,238,243,0.4\)/);
+  app.node('#frameStyleForm').onsubmit({preventDefault(){}});await app.state.pending;
+  for(const id of ['frame','second']){const saved=app.state.objects.get(id);assert.equal(saved.color,'#cbeef3');assert.equal(saved.frameStyle.opacity,40);assert.equal(saved.frameStyle.pattern,'none');assert.equal(saved.frameStyle.strokeColor,'#f0612d')}
+  app.undo();await app.state.pending;assert.equal(app.state.objects.get('frame').color,'#ffffff');assert.equal(app.state.objects.get('second').frameStyle.opacity,100);
+  app.node('#appearanceBtn').onclick();app.node('#framePattern').value='solid';app.node('#framePattern').oninput();assert.equal(app.node('#frameStroke').disabled,false);assert.equal(app.node('#frameWidth').disabled,false);
+  app.node('#frameTransparency').value='0';app.node('#frameStyleForm').onsubmit({preventDefault(){}});await app.state.pending;assert.equal(app.state.objects.get('frame').frameStyle.opacity,100);assert.equal(app.state.objects.get('frame').frameStyle.pattern,'solid');
+});
+test('Frames dos templates usam o mesmo fundo branco e contorno dos frames arrastados',async()=>{
+  const app=await ui();for(const kind of ['brainstorm','kanban','retro']){const frames=app.template(kind).filter(o=>o.type==='frame');assert.ok(frames.length);for(const frame of frames){assert.equal(frame.color,'#ffffff');assert.equal(frame.frameStyle.opacity,100);assert.equal(frame.frameStyle.pattern,'solid')}}
 });
 test('Edição inline do roadmap muda apenas a atividade escolhida e remove percentual legado',async()=>{
   const app=await ui(),object=app.template('roadmap')[0];object.roadmap.tasks[0]={...object.roadmap.tasks[0],progress:100};app.state.objects.set(object.id,object);

@@ -1,4 +1,4 @@
-import {elementLocked} from './element-properties.js';
+import {elementLocked,DEFAULT_FRAME_STYLE} from './element-properties.js';
 export function worldPoint(x,y,pan,zoom){return{x:(x-pan.x)/zoom,y:(y-pan.y)/zoom}}
 export const DEFAULT_CARD_COLOR='#ffffff',DEFAULT_LINE_COLOR='#000000';
 export function snapPoint(start,point){
@@ -9,7 +9,7 @@ export function snapPoint(start,point){
   return{x:start.x+distance*c,y:start.y+distance*s};
 }
 export function areaBetween(a,b){return{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)}}
-export function newFrameFromDrag(start,end,id){const w=Math.max(50,Math.abs(end.x-start.x)),h=Math.max(35,Math.abs(end.y-start.y));return{id,type:'frame',x:end.x<start.x?start.x-w:start.x,y:end.y<start.y?start.y-h:start.y,w,h,text:'Novo frame',color:DEFAULT_CARD_COLOR,z:Date.now()}}
+export function newFrameFromDrag(start,end,id){const w=Math.max(50,Math.abs(end.x-start.x)),h=Math.max(35,Math.abs(end.y-start.y));return{id,type:'frame',x:end.x<start.x?start.x-w:start.x,y:end.y<start.y?start.y-h:start.y,w,h,text:'Novo frame',color:DEFAULT_CARD_COLOR,frameStyle:{...DEFAULT_FRAME_STYLE},z:Date.now()}}
 function contains(r,p){return p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h}
 function intersects(a,b){return a.x<=b.x+b.w&&a.x+a.w>=b.x&&a.y<=b.y+b.h&&a.y+a.h>=b.y}
 export function segmentInArea(a,b,r){

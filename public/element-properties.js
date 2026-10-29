@@ -2,6 +2,7 @@ export const TEXT_FONTS=['Poppins','Arial','Georgia','monospace'];
 export const TEXT_TYPES=['sticky','rect','ellipse','diamond','text','frame','line'];
 export const LINE_ENDINGS=[['none','Sem ponta'],['arrow','Seta'],['dot','Bolinha'],['diamond','Losango'],['square','Quadrado']];
 export const STROKE_PATTERNS=[['solid','Contínuo'],['dashed','Tracejado'],['dotted','Pontilhado']];
+export const DEFAULT_FRAME_STYLE=Object.freeze({strokeColor:'#242124',strokeWidth:2,pattern:'solid',opacity:100,radius:12,showText:true,labelPosition:'outside'});
 export function lineFormat(o){return {start:'none',end:'arrow',pattern:'solid',width:2,route:!o.free&&(o.fromSide||o.toSide)?'curved':'straight',...o.lineStyle}}
 export function lineMarkerDefs(){return '<defs>'+[['arrow','<path d="M0 0 L10 5 L0 10z"/>'],['dot','<circle cx="5" cy="5" r="4"/>'],['diamond','<path d="M0 5 L5 0 L10 5 L5 10z"/>'],['square','<rect x="1" y="1" width="8" height="8"/>']].map(([id,shape])=>'<marker id="'+id+'" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" fill="context-stroke">'+shape+'</marker>').join('')+'</defs>'}
 export function frameFormat(o){return {strokeColor:'#9ca994',strokeWidth:2,pattern:'dashed',opacity:0,radius:12,showText:true,labelPosition:'outside',...o.frameStyle}}

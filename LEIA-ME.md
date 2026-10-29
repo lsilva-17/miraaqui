@@ -1,5 +1,9 @@
 # Miraaqui — espaço de colaboração
 
+**Frames:** arraste para criar uma área com fundo branco e contorno contínuo. Selecione-a e clique em **Estilo do frame** para escolher a cor do fundo, transparência e contorno (contínuo, tracejado, pontilhado ou sem linha), além da cor e espessura da borda. Confira a prévia e clique em **Aplicar aos frames**. A transparência vai de 0% (sólido) a 100% (transparente).
+
+**Seleção mais fácil:** linhas e setas aceitam cliques próximos ao traçado, inclusive nos intervalos de linhas tracejadas. Frames e blocos também têm uma margem de clique ao redor da borda. A facilidade de seleção se mantém ao mudar o zoom.
+
 Uma primeira versão funcional de quadro colaborativo interno, inspirada nos recursos básicos do Miro e FigJam. Não requer assinatura do ChatGPT nem dependências externas. Requer Node.js 24 ou superior.
 
 ## Começar

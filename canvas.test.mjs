@@ -1,7 +1,7 @@
 import {arrangeChanges,groupChanges,ungroupChanges,expandGroups,elementLocked,propertyError} from './public/element-properties.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {lineFormat,lineAttributes,frameCss,appearanceChanges} from './public/element-properties.js';
+import {lineFormat,lineAttributes,frameFormat,frameCss,appearanceChanges} from './public/element-properties.js';
 import {areaBetween,newFrameFromDrag,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,connectionAttachment,moveEndpoint,translateObject} from './public/canvas-geometry.js';
 const a={id:'a',type:'sticky',x:100,y:100,w:100,h:80},b={id:'b',type:'rect',x:350,y:100,w:120,h:80},frame={id:'f',type:'frame',x:50,y:50,w:500,h:400};
 test('Seleção funciona em ambas as direções e ignora o frame externo',()=>{const objects=new Map([a,b,frame].map(o=>[o.id,o]));assert.deepEqual(selectionInArea(objects,areaBetween({x:480,y:190},{x:90,y:90})),['a','b']);assert.deepEqual(selectionInArea(objects,{x:0,y:0,w:600,h:500}),['a','b','f']);assert.deepEqual(selectionInArea(objects,{x:201,y:181,w:40,h:20}),[])});
@@ -89,6 +89,13 @@ test('Pontas e traçados são independentes e estilos rejeitam CSS e valores inv
 test('Frame nasce na área arrastada em qualquer direção e mantém dimensões mínimas',()=>{
   for(const end of [{x:450,y:380},{x:-50,y:380},{x:450,y:-80},{x:-50,y:-80}]){const start={x:100,y:100},frame=newFrameFromDrag(start,end,'f');assert.equal(frame.x,Math.min(start.x,end.x));assert.equal(frame.y,Math.min(start.y,end.y));assert.equal(frame.w,Math.abs(end.x-start.x));assert.equal(frame.h,Math.abs(end.y-start.y));assert.equal(frame.color,'#ffffff');assert.equal(frame.type,'frame')}
   const small=newFrameFromDrag({x:100,y:100},{x:99,y:98},'f');assert.equal(small.x,50);assert.equal(small.y,65);assert.equal(small.w,50);assert.equal(small.h,35);
+});
+
+test('Novos frames têm fundo branco sólido e contorno; os estilos antigos são preservados',()=>{
+  const frame=newFrameFromDrag({x:0,y:0},{x:400,y:300},'new');
+  assert.equal(frame.color,'#ffffff');assert.equal(frameFormat(frame).opacity,100);assert.equal(frameFormat(frame).pattern,'solid');assert.match(frameCss(frame),/border:2px solid #242124/);assert.match(frameCss(frame),/rgba\(255,255,255,1\)/);
+  assert.equal(frameFormat({type:'frame'}).opacity,0);assert.equal(frameFormat({type:'frame'}).pattern,'dashed');
+  const styled={type:'frame',color:'#f0612d',frameStyle:{opacity:30,pattern:'none',strokeColor:'#219ebc'}};assert.match(frameCss(styled),/rgba\(240,97,45,0.3\)/);assert.match(frameCss(styled),/ none #219ebc/);
 });
 
 
