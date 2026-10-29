@@ -1,5 +1,7 @@
 # Miraaqui — espaço de colaboração
 
+Acesse a versão publicada em **https://miraaqui.caaqui.link/**. O endereço anterior redireciona para ele. No primeiro acesso ao novo domínio, entre novamente com sua conta e senha do Miraaqui.
+
 **Frames:** arraste para criar uma área com fundo branco e contorno contínuo. Selecione-a e clique em **Estilo do frame** para escolher a cor do fundo, transparência e contorno (contínuo, tracejado, pontilhado ou sem linha), além da cor e espessura da borda. Confira a prévia e clique em **Aplicar aos frames**. A transparência vai de 0% (sólido) a 100% (transparente).
 
 **Seleção mais fácil:** linhas e setas aceitam cliques próximos ao traçado, inclusive nos intervalos de linhas tracejadas. Frames e blocos também têm uma margem de clique ao redor da borda. A facilidade de seleção se mantém ao mudar o zoom.

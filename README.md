@@ -1,5 +1,7 @@
 # Miraaqui
 
+Produção: **https://miraaqui.caaqui.link/**. O endereço `miraaqui.vercel.app` redireciona para esse domínio. DNS externo na Cloudflare; manter o domínio personalizado como destino de produção em futuras publicações.
+
 Novos Frames usam fundo branco opaco e contorno contínuo. Selecione o Frame e abra **Estilo do frame** para alterar preenchimento, transparência (0% sólido; 100% transparente), cor, tipo e espessura do contorno, inclusive sem contorno. A janela mostra uma prévia e permite aplicar a vários Frames. Quadros existentes mantêm a aparência salva.
 
 Linhas, setas e desenhos têm uma área invisível de clique de 16 px, inclusive entre os traços. As bordas de Frames, blocos e notas aceitam cliques até 8 px ao redor. A tolerância acompanha o zoom sem engrossar o desenho ou afetar a exportação.
