@@ -1,5 +1,7 @@
 # Miraaqui — espaço de colaboração
 
+Ao arrastar elementos, as guias laranjas mostram quando os espaços entre eles ficam iguais, com as medidas dos intervalos. As linhas azuis ajudam a encaixar topo, centro, base e laterais dos cards. O indicador aparece suavemente e desaparece ao soltar ou cancelar. O recurso funciona com grupos e cópias com Alt; segurar Shift mantém a prioridade dos ângulos de 30°.
+
 Acesse a versão publicada em **https://miraaqui.caaqui.link/**. O endereço anterior redireciona para ele. No primeiro acesso ao novo domínio, entre novamente com sua conta e senha do Miraaqui.
 
 **Frames:** arraste para criar uma área com fundo branco e contorno contínuo. Selecione-a e clique em **Estilo do frame** para escolher a cor do fundo, transparência e contorno (contínuo, tracejado, pontilhado ou sem linha), além da cor e espessura da borda. Confira a prévia e clique em **Aplicar aos frames**. A transparência vai de 0% (sólido) a 100% (transparente).

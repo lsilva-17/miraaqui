@@ -2,8 +2,28 @@ import {arrangeChanges,groupChanges,ungroupChanges,expandGroups,elementLocked,pr
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {lineFormat,lineAttributes,frameFormat,frameCss,appearanceChanges} from './public/element-properties.js';
-import {areaBetween,newFrameFromDrag,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,quickConnectedCardPoint,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,connectionAttachment,moveEndpoint,translateObject} from './public/canvas-geometry.js';
+import {areaBetween,equalSpacing,newFrameFromDrag,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,quickConnectedCardPoint,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,connectionAttachment,moveEndpoint,translateObject} from './public/canvas-geometry.js';
 const a={id:'a',type:'sticky',x:100,y:100,w:100,h:80},b={id:'b',type:'rect',x:350,y:100,w:120,h:80},frame={id:'f',type:'frame',x:50,y:50,w:500,h:400};
+test('Espaçamento igual encaixa pelas bordas em ambos os eixos e mantém tolerância visual no zoom',()=>{
+  for(const vertical of [false,true]){const make=(id,pos,size=100)=>({id,type:'sticky',x:vertical?100:pos,y:vertical?pos:100,w:vertical?100:size,h:vertical?size:100}),moving=make('moving',200),left=make('left',0,80),right=make('right',500,140),objects=new Map([moving,left,right].map(o=>[o.id,o])),delta=vertical?{x:0,y:43}:{x:43,y:0};
+    const result=equalSpacing(objects,[moving],delta,2);assert.equal(result.delta[vertical?'y':'x'],40);assert.equal(result.guides[0].gap,160);assert.equal(result.guides[0].axis,vertical?'y':'x');assert.equal(result.guides[0].boxes.length,3);
+    assert.equal(equalSpacing(objects,[moving],delta,4).guides.length,0);assert.equal(equalSpacing(objects,[moving],delta,2,{snap:false}).delta[vertical?'y':'x'],43);
+    assert.equal(moving[vertical?'y':'x'],200);
+  }
+});
+test('Espaçamento igual repete um intervalo existente, usa o conjunto como unidade e ignora outras linhas e frames',()=>{
+  const box=(id,x,y=0,w=100)=>({id,type:'rect',x,y,w,h:100}),left=box('left',0),right=box('right',200),moving=box('moving',350),objects=new Map([left,right,moving,{id:'frame',type:'frame',x:0,y:0,w:2000,h:2000}].map(o=>[o.id,o]));
+  const repeat=equalSpacing(objects,[moving],{x:53,y:0},1);assert.equal(repeat.delta.x,50);assert.equal(repeat.guides[0].gap,100);
+  const first=box('first',200,300,40),second=box('second',260,300,40),refs=[box('start',0,300),box('end',500,300),first,second];const grouped=equalSpacing(new Map(refs.map(o=>[o.id,o])),[first,second],{x:53,y:0},1);assert.equal(grouped.delta.x,50);assert.equal(grouped.guides[0].gap,150);
+  assert.equal(equalSpacing(objects,[{...moving,y:500}],{x:53,y:0},1).guides.length,0);
+});
+test('Cards na mesma linha encaixam a altura e cards em coluna encaixam o centro horizontal',()=>{
+  const left={id:'left',type:'sticky',x:160,y:120,w:180,h:160},middle={...left,id:'middle',x:440,y:123.667},right={...left,id:'right',x:720},objects=new Map([left,middle,right].map(o=>[o.id,o])),row=equalSpacing(objects,[middle],{x:1,y:.3},1);assert.ok(Math.abs(middle.y+row.delta.y-120)<1e-8);assert.equal(middle.x+row.delta.x,440);assert.equal(row.guides[0].gap,100);assert.ok(row.alignments.some(a=>a.axis==='y'&&a.value===200));
+  const top={...left,id:'top',x:100,y:0},moving={...left,id:'moving',x:104,y:300},bottom={...left,id:'bottom',x:100,y:700},column=equalSpacing(new Map([top,moving,bottom].map(o=>[o.id,o])),[moving],{x:0,y:0},1);assert.equal(moving.x+column.delta.x,100);assert.ok(column.alignments.some(a=>a.axis==='x'&&a.value===190));
+});
+test('Alinhamento de cards com tamanhos diferentes reconhece topo e base sem atrair referências distantes',()=>{
+  const ref={id:'ref',type:'sticky',x:0,y:100,w:100,h:200},moving={id:'moving',type:'sticky',x:400,y:103,w:180,h:160},objects=new Map([ref,moving].map(o=>[o.id,o]));assert.equal(equalSpacing(objects,[moving],{x:0,y:0},1).delta.y,-3);moving.y=137;assert.equal(equalSpacing(objects,[moving],{x:0,y:0},1).delta.y,3);moving.x=3000;assert.equal(equalSpacing(objects,[moving],{x:0,y:0},1).alignments.length,0);
+});
 test('Seleção funciona em ambas as direções e ignora o frame externo',()=>{const objects=new Map([a,b,frame].map(o=>[o.id,o]));assert.deepEqual(selectionInArea(objects,areaBetween({x:480,y:190},{x:90,y:90})),['a','b']);assert.deepEqual(selectionInArea(objects,{x:0,y:0,w:600,h:500}),['a','b','f']);assert.deepEqual(selectionInArea(objects,{x:201,y:181,w:40,h:20}),[])});
 test('Conversão de coordenadas respeita deslocamento e zoom',()=>{assert.deepEqual(worldPoint(450,220,{x:150,y:20},2),{x:150,y:100});assert.deepEqual(worldPoint(75,30,{x:-25,y:-20},.5),{x:200,y:100})});
 test('Setas ancoradas acompanham movimento e redimensionamento dos blocos',()=>{const objects=new Map([[a.id,a],[b.id,b]]),line={id:'l',type:'line',from:'a',to:'b',fromSide:'right'};let g=connectionGeometry(line,objects);assert.deepEqual(g.start,{x:200,y:140});assert.deepEqual(g.end,{x:350,y:140});assert.match(g.path,/ C/);objects.set('b',{...b,x:500,w:200});g=connectionGeometry(line,objects);assert.equal(g.end.x,500);assert.equal(connectionGeometry({...line,to:'missing'},objects),null)});

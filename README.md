@@ -1,5 +1,7 @@
 # Miraaqui
 
+Guias inteligentes durante o arraste: medidas laranjas indicam espaços iguais entre três elementos na horizontal ou vertical; linhas azuis mostram alinhamento de bordas ou centros. O encaixe usa tolerância de 6 px na tela, acompanha o zoom e considera seleções como uma unidade. Funciona também em cópias com Alt; Shift preserva os ângulos de 30°. As guias são temporárias e não entram no conteúdo ou na exportação do quadro.
+
 Produção: **https://miraaqui.caaqui.link/**. O endereço `miraaqui.vercel.app` redireciona para esse domínio. DNS externo na Cloudflare; manter o domínio personalizado como destino de produção em futuras publicações.
 
 Novos Frames usam fundo branco opaco e contorno contínuo. Selecione o Frame e abra **Estilo do frame** para alterar preenchimento, transparência (0% sólido; 100% transparente), cor, tipo e espessura do contorno, inclusive sem contorno. A janela mostra uma prévia e permite aplicar a vários Frames. Quadros existentes mantêm a aparência salva.

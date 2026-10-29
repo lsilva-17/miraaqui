@@ -60,6 +60,21 @@ test('Alt click and canceled Alt drag do not create a note or save a change',asy
 });
 
 const sticky=()=>({id:'source',type:'sticky',x:100,y:100,w:180,h:160,color:'#c9e8ff',text:'Original'});
+test('Arrastar entre dois cards mostra espaços iguais, salva só o card movido e desfaz o encaixe',async()=>{
+  const app=await ui();for(const [id,x]of [['left',0],['source',200],['right',500]])app.state.objects.set(id,{...sticky(),id,x,w:100});
+  app.vp.onpointerdown(pointer(app,500,410));app.vp.onpointermove(pointer(app,606,410));assert.equal(app.state.objects.get('source').x,250);assert.match(app.node('#spacingGuides').innerHTML,/150 px/);assert.equal(app.state.objects.get('left').x,0);assert.equal(app.state.objects.get('right').x,500);
+  app.vp.onpointerup(pointer(app,606,410));await app.state.pending;assert.equal(app.node('#spacingGuides').innerHTML,'');const saves=app.requests.filter(r=>r.url.endsWith('/objects'));assert.equal(saves.length,1);assert.equal(saves[0].body.changes.length,1);app.undo();await app.state.pending;assert.equal(app.state.objects.get('source').x,200);app.redo();await app.state.pending;assert.equal(app.state.objects.get('source').x,250);
+});
+test('Shift preserva o ângulo e cancelar remove guias sem salvar a posição encaixada',async()=>{
+  const app=await ui();for(const [id,x]of [['left',0],['source',200],['right',500]])app.state.objects.set(id,{...sticky(),id,x,w:100});
+  app.vp.onpointerdown(pointer(app,500,410));app.vp.onpointermove(pointer(app,606,410));assert.equal(app.state.objects.get('source').x,250);app.changeDragConstraint(true);assert.equal(app.state.objects.get('source').x,253);assert.doesNotMatch(app.node('#spacingGuides').innerHTML,/150 px/);app.changeDragConstraint(false);assert.equal(app.state.objects.get('source').x,250);app.finishDrag(true);assert.equal(app.state.objects.get('source').x,200);assert.equal(app.node('#spacingGuides').innerHTML,'');assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0);
+});
+test('Alt arraste encaixa uma cópia no intervalo da sequência e cancelar preserva as notas originais',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());app.state.objects.set('next',{...sticky(),id:'next',x:460});app.vp.onpointerdown(pointer(app,320,410,{alt:true}));app.vp.onpointermove(pointer(app,1766,410,{alt:true}));const copy=[...app.state.objects.values()].find(o=>!['source','next'].includes(o.id));assert.equal(copy.x,820);assert.match(app.node('#spacingGuides').innerHTML,/180 px/);app.finishDrag(true);assert.equal(app.state.objects.size,2);assert.equal(app.node('#spacingGuides').innerHTML,'');
+});
+test('Encaixe vertical corrige card alguns pixels abaixo dos vizinhos, mostra guia e persiste a altura',async()=>{
+  const app=await ui();app.state.zoom=1;for(const [id,x,y]of [['left',160,120],['source',440,123.667],['right',720,120]])app.state.objects.set(id,{...sticky(),id,x,y});const event=pointer(app,1000,450);app.vp.onpointerdown(event);app.vp.onpointermove(pointer(app,1004,450));near(app.state.objects.get('source').y,120);assert.equal(app.state.objects.get('source').x,440);assert.match(app.node('#spacingGuides').innerHTML,/alignment-guide/);assert.match(app.node('#spacingGuides').innerHTML,/100 px/);app.vp.onpointerup(pointer(app,1004,450));await app.state.pending;near(app.state.objects.get('source').y,120);assert.equal(app.node('#spacingGuides').innerHTML,'');app.undo();await app.state.pending;assert.equal(app.state.objects.get('source').y,123.667);
+});
 const near=(value,expected)=>assert.ok(Math.abs(value-expected)<1e-8,value+' != '+expected);
 function pointer(app,x,y,{shift=false,alt=false,blank=false}={}){return {...app.event(x,y,alt),shiftKey:shift,...(blank?{target:{closest(){return null}}}:{})}}
 

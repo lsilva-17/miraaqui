@@ -9,6 +9,33 @@ export function snapPoint(start,point){
   return{x:start.x+distance*c,y:start.y+distance*s};
 }
 export function areaBetween(a,b){return{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)}}
+export function equalSpacing(objects,originals,delta,zoom=1,{snap=true}={}){
+  const isBox=o=>!['line','pen','frame'].includes(o.type)&&[o.x,o.y,o.w,o.h].every(Number.isFinite)&&o.w>0&&o.h>0,boxes=originals.filter(isBox),excluded=new Set(originals.map(o=>o.id));
+  if(!boxes.length)return{delta:{...delta},guides:[],alignments:[]};
+  const x=Math.min(...boxes.map(o=>o.x)),y=Math.min(...boxes.map(o=>o.y)),base={x:x+delta.x,y:y+delta.y,w:Math.max(...boxes.map(o=>o.x+o.w))-x,h:Math.max(...boxes.map(o=>o.y+o.h))-y},refs=[...objects.values()].filter(o=>!excluded.has(o.id)&&isBox(o)),tolerance=(snap?6:.5)/zoom;
+  const find=(box,axis,limit)=>{
+    const pos=axis==='x'?'x':'y',size=axis==='x'?'w':'h',cross=axis==='x'?'y':'x',crossSize=axis==='x'?'h':'w',overlap=(a,b)=>Math.min(a[cross]+a[crossSize],b[cross]+b[crossSize])-Math.max(a[cross],b[cross])>=Math.min(a[crossSize],b[crossSize])*.25;
+    const lane=refs.filter(o=>overlap(o,box)).sort((a,b)=>a[pos]-b[pos]||a[size]-b[size]);let best=null;
+    for(let i=0;i<lane.length-1;i++){
+      const a=lane[i],b=lane[i+1];if(!overlap(a,b))continue;
+      const gap=b[pos]-a[pos]-a[size],middle=(a[pos]+a[size]+b[pos]-box[size])/2;
+      for(const [target,kind]of [[middle,'between'],[a[pos]-box[size]-gap,'before'],[b[pos]+b[size]+gap,'after']]){
+        const distance=Math.abs(target-box[pos]),spacing=kind==='between'?(gap-box[size])/2:gap;if(spacing*zoom<8||distance>limit||best&&distance>=best.distance)continue;
+        const placed={...box,[pos]:target};if(lane.some(o=>Math.min(placed[pos]+placed[size],o[pos]+o[size])-Math.max(placed[pos],o[pos])>1e-6))continue;
+        best={axis,distance,offset:target-box[pos],gap:spacing,boxes:kind==='between'?[a,placed,b]:kind==='before'?[placed,a,b]:[a,b,placed]};
+      }
+    }
+    return best;
+  };
+  const align=(box,axis,limit)=>{
+    const size=axis==='x'?'w':'h',cross=axis==='x'?'y':'x',crossSize=axis==='x'?'h':'w';let best=null;
+    for(const anchor of [.5,0,1])for(const ref of refs){const separation=Math.max(0,box[cross]-ref[cross]-ref[crossSize],ref[cross]-box[cross]-box[crossSize]);if(separation*zoom>1000)continue;const value=ref[axis]+ref[size]*anchor,offset=value-box[axis]-box[size]*anchor,distance=Math.abs(offset);if(distance>limit||best&&(distance>best.distance+1e-6||Math.abs(distance-best.distance)<=1e-6&&separation>=best.separation))continue;best={axis,value,offset,distance,separation,anchor,ref}}
+    if(!best)return null;const matches=refs.filter(ref=>Math.abs(ref[axis]+ref[size]*best.anchor-best.value)<=limit&&Math.max(0,box[cross]-ref[cross]-ref[crossSize],ref[cross]-box[cross]-box[crossSize])*zoom<=1000);
+    return{...best,start:Math.min(box[cross],...matches.map(o=>o[cross])),end:Math.max(box[cross]+box[crossSize],...matches.map(o=>o[cross]+o[crossSize]))};
+  };
+  const closest=(spacing,alignment)=>!spacing?alignment:!alignment?spacing:spacing.distance<=alignment.distance?spacing:alignment,horizontal=closest(find(base,'x',tolerance),align(base,'x',tolerance)),vertical=closest(find(base,'y',tolerance),align(base,'y',tolerance)),adjusted={x:delta.x+(snap?horizontal?.offset||0:0),y:delta.y+(snap?vertical?.offset||0:0)},placed={...base,x:base.x+adjusted.x-delta.x,y:base.y+adjusted.y-delta.y},exact=snap?1e-5:tolerance;
+  return{delta:adjusted,guides:[find(placed,'x',exact),find(placed,'y',exact)].filter(Boolean),alignments:[align(placed,'x',exact),align(placed,'y',exact)].filter(Boolean)};
+}
 export function newFrameFromDrag(start,end,id){const w=Math.max(50,Math.abs(end.x-start.x)),h=Math.max(35,Math.abs(end.y-start.y));return{id,type:'frame',x:end.x<start.x?start.x-w:start.x,y:end.y<start.y?start.y-h:start.y,w,h,text:'Novo frame',color:DEFAULT_CARD_COLOR,frameStyle:{...DEFAULT_FRAME_STYLE},z:Date.now()}}
 function contains(r,p){return p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h}
 function intersects(a,b){return a.x<=b.x+b.w&&a.x+a.w>=b.x&&a.y<=b.y+b.h&&a.y+a.h>=b.y}

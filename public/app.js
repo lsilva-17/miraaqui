@@ -1,4 +1,4 @@
-import {worldPoint,areaBetween,newFrameFromDrag,edgePoint,connectionGeometry,lineLabelPoint,selectionInArea,deletionIds,duplicateObjects,resizedObject,newConnectedCard,quickConnectedCardPoint,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,connectionAttachment,moveEndpoint,translateObject} from './canvas-geometry.js';import {TEXT_FONTS,TEXT_TYPES,textFormat,textCss,expandGroups,elementLocked,groupChanges,ungroupChanges,lockChanges,formatChanges,layerChanges,arrangeChanges,propertyError,STROKE_PATTERNS,DEFAULT_FRAME_STYLE,lineFormat,frameFormat,lineAttributes,lineMarkerDefs,frameCss,appearanceChanges} from './element-properties.js';import {ROADMAP_VIEWS,TASK_STATUSES,taskStatus,newRoadmap,roadmapHtml,roadmapLayout,roadmapError,roadmapSvg} from './roadmap.js';
+import {worldPoint,areaBetween,equalSpacing,newFrameFromDrag,edgePoint,connectionGeometry,lineLabelPoint,selectionInArea,deletionIds,duplicateObjects,resizedObject,newConnectedCard,quickConnectedCardPoint,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,connectionAttachment,moveEndpoint,translateObject} from './canvas-geometry.js';import {TEXT_FONTS,TEXT_TYPES,textFormat,textCss,expandGroups,elementLocked,groupChanges,ungroupChanges,lockChanges,formatChanges,layerChanges,arrangeChanges,propertyError,STROKE_PATTERNS,DEFAULT_FRAME_STYLE,lineFormat,frameFormat,lineAttributes,lineMarkerDefs,frameCss,appearanceChanges} from './element-properties.js';import {ROADMAP_VIEWS,TASK_STATUSES,taskStatus,newRoadmap,roadmapHtml,roadmapLayout,roadmapError,roadmapSvg} from './roadmap.js';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],uid=()=>crypto.randomUUID(),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const state={user:null,org:'',boards:[],board:null,objects:new Map(),comments:[],selected:null,selection:new Set(),tool:'select',zoom:1,pan:{x:100,y:90},history:[],redo:[],client:uid(),source:null,dirty:0,pending:Promise.resolve(),online:true,changeVersion:0,authVersion:0,clipboard:null,styleClipboard:null,lineDefaults:{start:'none',end:'arrow',pattern:'solid',width:2,route:'straight'}};
 let toastTimer,authMode='login',setupNeeded=false,drag=null,space=false,lastCanvasPointer=null,connectFrom=null,connectFromSide=null,cursorAt=0,timerTick=null,timerSeconds=300,editing=null,textSession=null,viewBoardToken=0;
@@ -235,11 +235,23 @@ function drawDragGuide(start,point){
   const degrees=(Math.round(Math.atan2(point.y-start.y,point.x-start.x)*180/Math.PI)+360)%360,z=1/state.zoom;
   g.innerHTML='<path d="M'+start.x+' '+start.y+' L'+point.x+' '+point.y+'" fill="none" stroke="#4262ff" stroke-width="'+1.2*z+'" stroke-dasharray="'+5*z+' '+4*z+'"/><g transform="translate('+(point.x+12*z)+' '+(point.y-20*z)+') scale('+z+')"><rect x="-5" y="-12" width="43" height="21" rx="5" fill="#fff" stroke="#4262ff"/><text fill="#2445d4" font-size="11" font-family="Poppins, sans-serif">'+degrees+'°</text></g>';
 }
+function drawSpacingGuides(guides,alignments=[]){
+  const root=$('#spacingGuides'),z=1/state.zoom;root.classList.toggle('visible',!!(guides.length||alignments.length));
+  const html=guides.map(g=>{const horizontal=g.axis==='x',boxes=g.boxes,baseline=Math.max(...boxes.map(b=>horizontal?b.y+b.h:b.x+b.w))+24*z,label=(Math.round(g.gap*10)/10).toLocaleString('pt-BR')+' px';
+    return boxes.slice(0,2).map((a,i)=>{const b=boxes[i+1],start=horizontal?a.x+a.w:a.y+a.h,end=horizontal?b.x:b.y,center=(start+end)/2,width=(label.length*6+14)*z;
+      const measure=horizontal?'M'+start+' '+(a.y+a.h+5*z)+' V'+(baseline+5*z)+' M'+end+' '+(b.y+b.h+5*z)+' V'+(baseline+5*z)+' M'+start+' '+baseline+' H'+end:'M'+(a.x+a.w+5*z)+' '+start+' H'+(baseline+5*z)+' M'+(b.x+b.w+5*z)+' '+end+' H'+(baseline+5*z)+' M'+baseline+' '+start+' V'+end;
+      const x=horizontal?center:baseline,y=horizontal?baseline:center;
+      return '<g class="spacing-measure"><path d="'+measure+'" fill="none" stroke="#f0612d" stroke-width="'+1.25*z+'" stroke-linecap="round"/>'+(g.gap*state.zoom>=46?'<rect x="'+(x-width/2)+'" y="'+(y-10*z)+'" width="'+width+'" height="'+20*z+'" rx="'+6*z+'" fill="#fff8f2" stroke="#f0612d" stroke-width="'+.7*z+'"/><text x="'+x+'" y="'+(y+3.5*z)+'" text-anchor="middle" fill="#a63c15" font-family="Poppins, sans-serif" font-size="'+10*z+'" font-weight="500">'+label+'</text>':'')+'</g>';
+    }).join('');
+  }).join('')+alignments.map(a=>{const d=a.axis==='x'?'M'+a.value+' '+(a.start-14*z)+' V'+(a.end+14*z):'M'+(a.start-14*z)+' '+a.value+' H'+(a.end+14*z);return '<path class="alignment-guide" d="'+d+'" fill="none" stroke="#4262ff" stroke-width="'+1.1*z+'" stroke-dasharray="'+5*z+' '+4*z+'"/>'}).join('');if(root.innerHTML!==html)root.innerHTML=html;
+}
 function updateDrag(e){
   if(!drag)return;const raw=localPoint(e);drag.pointer={clientX:e.clientX,clientY:e.clientY,shiftKey:!!e.shiftKey};
   let origin=drag.mode==='endpoint'?drag.anchor:drag.start;if(drag.mode==='connect'){const source=state.objects.get(drag.from);if(source)origin={x:source.x+source.w/2,y:source.y+source.h/2}}
-  const constrained=e.shiftKey&&['move','alt-copy','free-line','connect','endpoint'].includes(drag.mode),p=constrained?snapPoint(origin,raw):raw;
+  const constrained=e.shiftKey&&['move','alt-copy','free-line','connect','endpoint'].includes(drag.mode);let p=constrained?snapPoint(origin,raw):raw;
   if(drag.start&&Math.hypot(raw.x-drag.start.x,raw.y-drag.start.y)*state.zoom>=3)drag.moved=true;
+  let spacing=[],alignments=[];
+  if(drag.moved&&['move','alt-copy'].includes(drag.mode)){const originals=drag.mode==='alt-copy'?[{...drag.source,id:drag.id}]:drag.objects,result=equalSpacing(state.objects,originals,{x:p.x-drag.start.x,y:p.y-drag.start.y},state.zoom,{snap:!e.shiftKey});p={x:drag.start.x+result.delta.x,y:drag.start.y+result.delta.y};spacing=result.guides;alignments=result.alignments}
   drag.point=p;
   if(drag.mode==='pan'){state.pan={x:drag.pan.x+e.clientX-drag.x,y:drag.pan.y+e.clientY-drag.y};transform()}
   if(drag.mode==='new-frame'&&drag.moved){const frame=newFrameFromDrag(drag.start,p,drag.id);drawMarquee(frame,{x:frame.x+frame.w,y:frame.y+frame.h})}
@@ -250,7 +262,7 @@ function updateDrag(e){
   if(drag.mode==='alt-copy'&&drag.moved){const note=emptyNoteCopy(drag.source,drag.id);note.x+=p.x-drag.start.x;note.y+=p.y-drag.start.y;state.objects.set(note.id,note);setSelection([note.id]);drag.created=true;render()}
   if((drag.mode==='move'||drag.mode==='resize')&&drag.moved){for(const original of drag.objects){if(!state.objects.has(original.id))continue;const o=structuredClone(original);if(drag.mode==='move'){Object.assign(o,translateObject(original,{x:p.x-drag.start.x,y:p.y-drag.start.y}))}else Object.assign(o,resizedObject(original,{x:p.x-drag.start.x,y:p.y-drag.start.y},drag.corner));state.objects.set(o.id,o)}render()}
   if(drag.mode==='pen'&&e.appendInk){drag.points.push(p);$('#ink').innerHTML+='<path d="M'+drag.points.at(-2).x+' '+drag.points.at(-2).y+' L'+p.x+' '+p.y+'" stroke="#000000" stroke-width="3" fill="none"/>'}
-  if(constrained&&drag.moved&&!(drag.mode==='endpoint'&&drag.attachment))drawDragGuide(origin,p);else $('#dragGuide').innerHTML='';
+  drawSpacingGuides(spacing,alignments);if(constrained&&drag.moved&&!(drag.mode==='endpoint'&&drag.attachment))drawDragGuide(origin,p);else $('#dragGuide').innerHTML='';
 }
 function changeDragConstraint(shiftKey){if(drag?.pointer)updateDrag({...drag.pointer,shiftKey})}
 vp.onpointermove=e=>{
@@ -258,7 +270,7 @@ vp.onpointermove=e=>{
   updateDrag({clientX:e.clientX,clientY:e.clientY,shiftKey:e.shiftKey,appendInk:true});
 };
 function finishDrag(cancel=false,event){
-  if(!drag)return;if(!cancel&&event)updateDrag(event);const d=drag,dropTarget=d.to,dropSide=d.toSide;drag=null;updatePanIndicator();$('#selectionRect').hidden=true;$('#selectionRect').classList.remove('frame-draft');clearConnectionPreview();$('#dragGuide').innerHTML='';
+  if(!drag)return;if(!cancel&&event)updateDrag(event);const d=drag,dropTarget=d.to,dropSide=d.toSide;drag=null;updatePanIndicator();$('#selectionRect').hidden=true;$('#selectionRect').classList.remove('frame-draft');clearConnectionPreview();$('#dragGuide').innerHTML='';drawSpacingGuides([]);
   if(d.mode==='new-frame'){if(cancel||!d.moved||Math.hypot(d.point.x-d.start.x,d.point.y-d.start.y)*state.zoom<6){selectObjects(d.previous);return}const frame=newFrameFromDrag(d.start,d.point,d.id);setSelection([frame.id]);doCommit([{id:frame.id,object:frame}]);setTool('select');return}
   if(d.mode==='endpoint'){if(cancel){state.objects.set(d.id,d.original);render();return}const current=state.objects.get(d.id);if(d.moved&&current&&JSON.stringify(current)!==JSON.stringify(d.original))doCommit([{id:d.id,object:structuredClone(current)}],true,[{id:d.id,object:d.original}]);return}
   if(d.mode==='free-line'){if(cancel||!d.moved)return;const point=d.point;if(Math.hypot(point.x-d.start.x,point.y-d.start.y)*state.zoom<6)return;const arrow={...newFreeArrow(d.start,point,d.id),lineStyle:{...state.lineDefaults}};setSelection([arrow.id]);doCommit([{id:arrow.id,object:arrow}]);setTool('select');return}
