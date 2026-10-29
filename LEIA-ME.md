@@ -1,5 +1,7 @@
 # Miraaqui — espaço de colaboração
 
+**Organizar visualmente:** selecione dois ou mais elementos e clique em **Alinhar** na barra inferior. Escolha pelos desenhos: esquerda, centro, direita, topo, meio, base ou espaços iguais na horizontal/vertical. Passe o mouse para ver a prévia tracejada no quadro; clique para aplicar. Você pode combinar ações com o painel aberto e desfazer com Ctrl+Z. Para distribuir, selecione três ou mais elementos ou grupos. Escape fecha o painel sem alterar a seleção.
+
 Ao arrastar elementos, as guias laranjas mostram quando os espaços entre eles ficam iguais, com as medidas dos intervalos. As linhas azuis ajudam a encaixar topo, centro, base e laterais dos cards. O indicador aparece suavemente e desaparece ao soltar ou cancelar. O recurso funciona com grupos e cópias com Alt; segurar Shift mantém a prioridade dos ângulos de 30°.
 
 Acesse a versão publicada em **https://miraaqui.caaqui.link/**. O endereço anterior redireciona para ele. No primeiro acesso ao novo domínio, entre novamente com sua conta e senha do Miraaqui.

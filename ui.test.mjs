@@ -18,7 +18,8 @@ async function ui(){
   };
   const tools=['select','hand','sticky','text','rect','ellipse','diamond','line','pen','frame'].map(tool=>Object.assign(node('tool-'+tool),{dataset:{tool}}));
   const colors=Array.from({length:10},(_,i)=>Object.assign(node('color-'+i),{dataset:{noteColor:i===0?'#fff0a9':'#c9e8ff'}}));
-  const document={createElement:tag=>node('created-'+tag),querySelector:selector=>selector==='dialog[open]'?null:node(selector),querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:[],
+  const arrangeButtons=['left','centerX','right','top','centerY','bottom','distributeX','distributeY'].map(action=>Object.assign(node('arrange-'+action),{dataset:{arrange:action}}));
+  const document={createElement:tag=>node('created-'+tag),querySelector:selector=>selector==='dialog[open]'?null:node(selector),querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:s==='[data-arrange]'?arrangeButtons:[],
     elementsFromPoint(){return []},elementFromPoint(){return {closest(){return null}}},getElementById(id){return node(id)},addEventListener(type,fn){listeners.set(type,fn)},documentElement:node('root')};
   const context=vm.createContext({...geometry,...properties,...roadmap,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
     structuredClone,setTimeout,clearTimeout,console,fetch:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({})}}});
@@ -27,8 +28,22 @@ async function ui(){
   const app=context.ui;app.state.board={id:'fixture'};app.state.pan={x:100,y:50};app.state.zoom=2;
   const target={dataset:{id:'source'},closest:s=>s==='[data-id]'?target:null};
   const event=(x,y,alt=true)=>({button:0,pointerId:1,clientX:x,clientY:y,altKey:alt,target,preventDefault(){}});
-  return {...app,requests,node,tools,colors,event,listeners};
+  return {...app,requests,node,tools,colors,arrangeButtons,event,listeners};
 }
+
+test('Painel visual mostra prévia sem salvar, aplica com um clique e permite desfazer com o painel aberto',async()=>{
+  const app=await ui();for(const [id,x,y]of [['source',100,100],['second',400,150],['third',700,200]])app.state.objects.set(id,{id,type:'sticky',x,y,w:180,h:160,color:'#ffffff',text:id});app.selectObjects(['source','second','third']);assert.equal(app.node('#arrangeBtn').hidden,false);app.node('#arrangeBtn').onclick();assert.equal(app.node('#arrangePopover').hidden,false);assert.equal(app.arrangeButtons.length,8);
+  const left=app.arrangeButtons.find(b=>b.dataset.arrange==='left');left.onpointerenter();assert.match(app.node('#arrangePreview').innerHTML,/x="100"/);assert.equal(app.state.objects.get('second').x,400);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0);left.onpointerleave();assert.equal(app.node('#arrangePreview').innerHTML,'');
+  const top=app.arrangeButtons.find(b=>b.dataset.arrange==='top');top.onclick();await app.state.pending;assert.ok([...app.state.objects.values()].every(o=>o.y===100));assert.equal(app.node('#arrangePopover').hidden,false);top.onclick();await app.state.pending;assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);
+  app.node('#arrangePopover').onkeydown({key:'z',ctrlKey:true,preventDefault(){}});await app.state.pending;assert.equal(app.state.objects.get('second').y,150);app.node('#arrangePopover').onkeydown({key:'z',ctrlKey:true,shiftKey:true,preventDefault(){}});await app.state.pending;assert.equal(app.state.objects.get('second').y,100);
+});
+test('Distribuição exige três unidades, respeita grupos e bloqueia edição de visualizadores',async()=>{
+  const app=await ui();for(const [id,x,groupId]of [['source',100,'group'],['second',300,'group'],['third',650,null],['fourth',1000,null]])app.state.objects.set(id,{id,type:'sticky',x,y:100,w:100,h:100,color:'#ffffff',text:id,groupId});app.selectObjects(['source','third']);app.node('#arrangeBtn').onclick();assert.equal(app.arrangeButtons.find(b=>b.dataset.arrange==='distributeX').disabled,true);assert.equal(app.node('#arrangeCount').textContent,'2 itens');app.selectObjects(['source','third','fourth']);assert.equal(app.node('#arrangePopover').hidden,true);app.node('#arrangeBtn').onclick();const distribute=app.arrangeButtons.find(b=>b.dataset.arrange==='distributeX');assert.equal(distribute.disabled,false);distribute.onclick();await app.state.pending;assert.equal(app.state.objects.get('second').x-app.state.objects.get('source').x,200);
+  app.state.user={role:'viewer'};app.selectObjects(['source','third']);assert.equal(app.node('#arrangeBtn').disabled,true);assert.equal(app.node('#arrangePopover').hidden,true);app.node('#arrangeBtn').onclick();assert.equal(app.node('#arrangePopover').hidden,true);
+});
+test('Escape fecha o painel e remove a prévia mantendo a seleção',async()=>{
+  const app=await ui();for(const [id,x]of [['source',100],['second',400]])app.state.objects.set(id,{id,type:'sticky',x,y:100,w:100,h:100,color:'#ffffff',text:id});app.selectObjects(['source','second']);app.node('#arrangeBtn').onclick();app.arrangeButtons[0].onfocus();assert.ok(app.node('#arrangePreview').innerHTML);app.listeners.get('keydown')({key:'Escape',preventDefault(){},target:{tagName:'BUTTON',closest(){return true}}});assert.equal(app.node('#arrangePopover').hidden,true);assert.equal(app.node('#arrangePreview').innerHTML,'');assert.equal(app.state.selection.size,2);
+});
 
 test('UI loads, registers all color choices and Alt drag saves one blank copy with reversible history',async()=>{
   const app=await ui(),source={id:'source',type:'sticky',x:100,y:100,w:240,h:190,color:'#c9e8ff',text:'Original'};

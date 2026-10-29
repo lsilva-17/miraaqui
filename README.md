@@ -1,5 +1,7 @@
 # Miraaqui
 
+Alinhar e distribuir: selecione dois ou mais itens e clique em **Alinhar** na barra inferior, ou use a opção no botão direito. O painel contextual traz oito comandos ilustrados. Passar o mouse ou focar uma opção mostra contornos de prévia no quadro sem modificar ou salvar objetos; o clique aplica a organização. O painel permanece aberto para combinar ações, aceita navegação por setas e Ctrl+Z/Ctrl+Shift+Z, e fecha com Escape ou clique fora. Distribuir exige três unidades; grupos contam como uma e mantêm seu espaçamento interno.
+
 Guias inteligentes durante o arraste: medidas laranjas indicam espaços iguais entre três elementos na horizontal ou vertical; linhas azuis mostram alinhamento de bordas ou centros. O encaixe usa tolerância de 6 px na tela, acompanha o zoom e considera seleções como uma unidade. Funciona também em cópias com Alt; Shift preserva os ângulos de 30°. As guias são temporárias e não entram no conteúdo ou na exportação do quadro.
 
 Produção: **https://miraaqui.caaqui.link/**. O endereço `miraaqui.vercel.app` redireciona para esse domínio. DNS externo na Cloudflare; manter o domínio personalizado como destino de produção em futuras publicações.
