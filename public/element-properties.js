@@ -55,6 +55,7 @@ export function groupChanges(objects,ids,newId){const selected=expandGroups(obje
 export function ungroupChanges(objects,ids){return expandGroups(objects,ids).filter(id=>objects.get(id).groupId&&!elementLocked(objects,id)).map(id=>({id,object:{...objects.get(id),groupId:null}}))}
 export function lockChanges(objects,ids,locked){return expandGroups(objects,ids).map(id=>({id,object:{...objects.get(id),locked}}))}
 export function formatChanges(objects,ids,patch){return ids.filter(id=>TEXT_TYPES.includes(objects.get(id)?.type)&&!elementLocked(objects,id)).map(id=>({id,object:{...objects.get(id),textStyle:{...objects.get(id).textStyle,...patch}}}))}
+export function elementLayer(o){return o.type==='frame'?0:o.type==='line'?2:o.type==='pen'?4:(o.z||0)<0?1:3}
 export function layerChanges(objects,ids,front){
   const values=[...objects.values()].map(o=>o.z||0),z=front?Math.max(0,...values)+1:Math.min(0,...values)-ids.length;
   return ids.filter(id=>!elementLocked(objects,id)&&!['frame','line','pen'].includes(objects.get(id)?.type)).map((id,i)=>({id,object:{...objects.get(id),z:z+i}}));

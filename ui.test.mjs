@@ -77,6 +77,14 @@ test('Alt click and canceled Alt drag do not create a note or save a change',asy
 });
 
 const sticky=()=>({id:'source',type:'sticky',x:100,y:100,w:180,h:160,color:'#c9e8ff',text:'Original'});
+test('Enviar forma para trás coloca o fundo abaixo das setas, persiste e desfaz a camada',async()=>{
+  const app=await ui(),shape={...sticky(),type:'rect',w:700,h:400,text:'Fundo do fluxo',z:10,shapeStyle:{...shapes.DEFAULT_SHAPE_STYLE}},line={...geometry.newFreeArrow({x:120,y:150},{x:500,y:200},'arrow'),z:20},card={...sticky(),id:'card',z:30};
+  for(const o of [shape,line,card])app.state.objects.set(o.id,o);app.selectObjects(['source']);app.orderSelection(false);await app.state.pending;
+  const back=app.state.objects.get('source');assert.equal(properties.elementLayer(back),1);assert.ok(properties.elementLayer(back)<properties.elementLayer(line));assert.ok(properties.elementLayer(line)<properties.elementLayer(card));assert.match(app.node('#objects').innerHTML,/data-id="source" data-layer="1"/);
+  const svg=app.svgExport();assert.ok(svg.indexOf('d="M120 150 L500 200"')>svg.indexOf('Fundo do fluxo'));assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);
+  app.undo();await app.state.pending;assert.equal(properties.elementLayer(app.state.objects.get('source')),3);app.redo();await app.state.pending;assert.equal(properties.elementLayer(app.state.objects.get('source')),1);app.orderSelection(true);await app.state.pending;assert.equal(properties.elementLayer(app.state.objects.get('source')),3);assert.ok(app.state.objects.get('source').z>card.z);
+  assert.equal(properties.elementLayer({type:'frame',z:100}),0);assert.equal(properties.elementLayer({type:'line',z:-20}),2);assert.equal(properties.elementLayer({type:'pen',z:-20}),4);
+});
 test('Frame é selecionado pelo interior, pode ser movido e os objetos internos continuam selecionáveis',async()=>{
   const app=await ui(),frame={...sticky(),type:'frame',w:500,h:400};app.state.objects.set('source',frame);
   app.vp.onpointerdown(pointer(app,500,450));app.vp.onpointerup(pointer(app,500,450));assert.deepEqual([...app.state.selection],['source']);assert.equal(app.node('created-textarea').value,undefined);
