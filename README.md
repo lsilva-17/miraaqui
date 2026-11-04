@@ -101,3 +101,16 @@ Direção escolhida pelo usuário: Aero em versão mais sutil. A seleção usa o
 ### Criar um card conectado com um clique
 
 Clique e solte uma bolinha azul para criar um card ao lado correspondente, já ligado à origem. Se o espaço estiver ocupado, o novo card é deslocado para uma área livre próxima. Arrastar a bolinha continua permitindo escolher o local de criação ou conectar a um elemento existente. A seta tem ponta no fim por padrão; seu estilo pode ser alterado na barra inferior. Card e seta são desfeitos juntos.
+
+## Copiar, colar e importar de outras ferramentas
+
+No quadro, use Ctrl/Cmd+V para colar o conteúdo real da área de transferência. O botão **Importar** também aceita arquivos e oferece instruções para cada origem; arrastar arquivos para o quadro usa a mesma importação. Cada lote é uma única ação de desfazer/refazer, com limite de 500 elementos. Copiar elementos do Miraaqui grava uma representação editável na área de transferência, incluindo grupos e conexões internas, permitindo colar entre abas e quadros sem depender de uma cópia antiga na memória.
+
+- **Miro:** Ctrl+C traz textos; várias linhas viram notas. Ctrl+Shift+C na origem copia uma imagem do conjunto. Arquivos CSV viram notas editáveis.
+- **Figma/FigJam:** copie como SVG ou PNG para preservar a aparência. SVG é convertido localmente para imagem PNG; os objetos internos de uma imagem não ficam editáveis individualmente. O formato binário privado do Figma não é convertido.
+- **tldraw:** dados da área de transferência (versões 1–3), TLContent e arquivos `.tldr`/JSON são convertidos em notas, formas, textos, desenhos e conexões compatíveis. Grupos e âncoras recebem novos IDs. Recursos sem equivalente, imagens externas por URL e rotações são informados ao importar.
+- **Excalidraw:** JSON e conteúdo da área de transferência convertem formas, textos ligados, desenhos e conexões compatíveis. Também aceita backups JSON Miraaqui, TXT e células de planilhas separadas por tabulação.
+
+Conteúdo externo editável recebe tipografia, alinhamento, espessura e espaçamento interno padrão do Miraaqui, preservando as cores, os tipos de forma e a disposição/conexões. Backups e cópias do próprio Miraaqui preservam a formatação. Não há garantia de reprodução integral de efeitos ou elementos específicos de outra ferramenta; use PNG/SVG quando a fidelidade visual for a prioridade.
+
+A conversão ocorre no navegador, antes do salvamento normal do quadro. SVGs são tratados como imagens, com scripts e referências externas removidos. Imagens são incorporadas e redimensionadas para o limite do quadro. A importação não baixa automaticamente imagens externas nem envia dados para serviços de conversão. Visualizadores não podem importar; trocar de quadro ou sessão durante a leitura cancela a adição pendente.

@@ -6,6 +6,7 @@ import * as geometry from './public/canvas-geometry.js';
 import * as properties from './public/element-properties.js';
 import * as roadmap from './public/roadmap.js';
 import * as shapes from './public/shapes.js';
+import * as importing from './public/import-content.js';
 
 // Run the real UI handlers with a minimal DOM and an in-memory save endpoint.
 // This covers gestures and undo without browser input limitations or production data.
@@ -22,10 +23,10 @@ async function ui(){
   const arrangeButtons=['left','centerX','right','top','centerY','bottom','distributeX','distributeY'].map(action=>Object.assign(node('arrange-'+action),{dataset:{arrange:action}}));
   const document={createElement:tag=>node('created-'+tag),querySelector:selector=>selector==='dialog[open]'?null:node(selector),querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:s==='[data-arrange]'?arrangeButtons:[],
     elementsFromPoint(){return []},elementFromPoint(){return {closest(){return null}}},getElementById(id){return node(id)},addEventListener(type,fn){listeners.set(type,fn)},documentElement:node('root')};
-  const context=vm.createContext({...geometry,...properties,...roadmap,...shapes,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
+  const context=vm.createContext({...geometry,...properties,...roadmap,...shapes,...importing,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
     structuredClone,setTimeout,clearTimeout,console,fetch:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({})}}});
   const source=(await readFile(new URL('./public/app.js',import.meta.url),'utf8')).replace(/^import[^\n]+\n/,'').replace(/init\(\);\s*$/,'');
-  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,template,saveRoadmap,saveInlineRoadmap,beginTextEdit,finishTextEdit,applyAppearance,chooseShape,svgExport,nodes:null};',context);
+  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,template,saveRoadmap,saveInlineRoadmap,beginTextEdit,finishTextEdit,applyAppearance,chooseShape,svgExport,applyExternalPayload,openImportPanel,nodes:null};',context);
   const app=context.ui;app.state.board={id:'fixture'};app.state.pan={x:100,y:50};app.state.zoom=2;
   const target={dataset:{id:'source'},closest:s=>s==='[data-id]'?target:null};
   const event=(x,y,alt=true)=>({button:0,pointerId:1,clientX:x,clientY:y,altKey:alt,target,preventDefault(){}});
@@ -383,4 +384,17 @@ test('Editor de conexão cresce com o conteúdo, suporta nova linha e cancela se
 
 test('Rótulo transparente abre um espaço real no traço e a exportação mantém a transparência',async()=>{
   const app=await ui(),line={...geometry.newFreeArrow({x:100,y:150},{x:600,y:150},'source'),text:'Insumos levantados?',lineStyle:{end:'arrow',pattern:'solid',width:2}};app.state.objects.set('source',line);app.selectObjects(['source']);app.applyAppearance('line',{width:3});await app.state.pending;assert.match(app.node('#links').innerHTML,/<mask id="label-cut-source"/);assert.match(app.node('#links').innerHTML,/mask="url\(#label-cut-source\)"/);assert.match(app.node('#lineLabels').innerHTML,/max-width:260px/);const svg=app.svgExport();assert.match(svg,/<foreignObject/);assert.match(svg,/Insumos levantados\?/);assert.match(svg,/mask="url\(#label-cut-source\)"/);assert.doesNotMatch(svg,/background:#fff/);assert.match(svg,/marker-end="url\(#arrow\)"/);
+});
+
+test('Ctrl+V usa conteúdo externo mesmo após uma cópia interna e salva o lote em uma ação',async()=>{
+  const app=await ui();app.state.objects.set('source',sticky());app.selectObjects(['source']);app.copySelection();app.node('#editor').hidden=false;let prevented=false;const added=await app.listeners.get('paste')({target:{tagName:'DIV'},clipboardData:{files:[],getData:type=>type==='text/plain'?'Pesquisa\nPlanejamento\nEntrega':''},preventDefault(){prevented=true}});await app.state.pending;assert.equal(prevented,true);assert.equal(added.length,3);assert.equal(app.state.objects.size,4);assert.deepEqual(added.map(o=>o.text),['Pesquisa','Planejamento','Entrega']);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);app.undo();await app.state.pending;assert.equal(app.state.objects.size,1);
+});
+test('Copiar e colar pela área de transferência mantém grupos e conexões sem reutilizar IDs',async()=>{
+  const app=await ui();for(const [id,x]of [['source',100],['other',500]])app.state.objects.set(id,{...sticky(),id,x,groupId:'group'});app.state.objects.set('line',{id:'line',type:'line',from:'source',to:'other',x:0,y:0,w:1,h:1,text:'Fluxo',color:'#000000'});app.selectObjects(['source','other']);app.node('#editor').hidden=false;const clipboard=new Map();app.listeners.get('copy')({target:{tagName:'DIV'},clipboardData:{setData:(type,value)=>clipboard.set(type,value)},preventDefault(){}});assert.ok(clipboard.get('text/html').includes('data-miraaqui'));const pasted=await app.listeners.get('paste')({target:{tagName:'DIV'},clipboardData:{files:[],getData:type=>clipboard.get(type)||''},preventDefault(){}});await app.state.pending;assert.equal(pasted.length,3);const line=pasted.find(o=>o.type==='line');assert.ok(pasted.some(o=>o.id===line.from));assert.notEqual(line.from,'source');assert.equal(pasted.filter(o=>o.type==='sticky')[0].groupId,pasted.filter(o=>o.type==='sticky')[1].groupId);
+});
+test('Colar em campo de texto não cria objetos e visualizador não importa',async()=>{
+  const app=await ui();app.node('#editor').hidden=false;const event={target:{tagName:'TEXTAREA'},clipboardData:{files:[],getData:()=> 'Algo'},preventDefault(){throw Error('Não deve interceptar edição de campo')}};await app.listeners.get('paste')(event);assert.equal(app.state.objects.size,0);app.state.user={role:'viewer'};await app.applyExternalPayload({text:'Ideia'});assert.equal(app.state.objects.size,0);assert.equal(app.requests.length,0);
+});
+test('Importação assíncrona não grava em outro quadro após navegação',async()=>{
+  const app=await ui();let release;const file={name:'clipboard.json',type:'application/json',size:100,text:()=>new Promise(resolve=>release=resolve)},pending=app.applyExternalPayload({files:[file]});app.state.board={id:'outro'};release(JSON.stringify({format:'elo',objects:[{...sticky()}]}));const result=await pending;assert.equal(result,null);assert.equal(app.state.objects.size,0);assert.equal(app.requests.length,0);
 });
