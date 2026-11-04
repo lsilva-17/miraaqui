@@ -137,3 +137,9 @@ test('Todas as formas têm estilo validado, fundo independente do texto e criaç
 test('Conexões usam a borda real de triângulos e hexágonos e acompanham seu movimento',()=>{
   const tri=newShapeFromDrag('triangle',{x:0,y:0},{x:200,y:200},'tri'),hex=newShapeFromDrag('hexagon',{x:400,y:0},{x:600,y:200},'hex'),objects=new Map([[tri.id,tri],[hex.id,hex]]),line={type:'line',from:'tri',to:'hex',lineStyle:{route:'straight'}};let g=connectionGeometry(line,objects);assert.deepEqual(g.start,{x:150,y:100});assert.deepEqual(g.end,{x:400,y:100});const anchor=attachmentAt(tri,{x:180,y:80});assert.ok(anchor.anchor.x<1);const linked={...line,fromSide:anchor.side,fromAnchor:anchor.anchor};objects.set('tri',{...tri,x:50});g=connectionGeometry(linked,objects);assert.equal(g.start.x,50+anchor.anchor.x*200);const card=newConnectedCard(hex,{x:800,y:100},'right',()=>crypto.randomUUID()).card;assert.equal(card.type,'hexagon');assert.deepEqual(card.shapeStyle,shapeFormat(hex));assert.equal(card.text,'');
 });
+
+test('Controles laterais alteram somente um eixo e preservam a borda oposta',()=>{
+  const o={id:'s',type:'rect',x:100,y:200,w:400,h:120};
+  for(const [side,expected]of [['e',{x:100,y:200,w:430,h:120}],['w',{x:130,y:200,w:370,h:120}],['n',{x:100,y:240,w:400,h:80}],['s',{x:100,y:200,w:400,h:160}]]){const next=resizedObject(o,{x:30,y:40},side);for(const key of ['x','y','w','h'])assert.equal(next[key],expected[key])}
+  const min=resizedObject(o,{x:1000,y:1000},'w');assert.equal(min.w,50);assert.equal(min.h,120);assert.equal(min.x+min.w,o.x+o.w);
+});
