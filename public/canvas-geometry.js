@@ -162,10 +162,21 @@ export function objectInArea(o,area,objects){
 }
 export function selectionInArea(objects,area){return[...objects.values()].filter(o=>!elementLocked(objects,o.id)&&objectInArea(o,area,objects)).map(o=>o.id)}
 export function deletionIds(objects,ids){const chosen=new Set(ids);for(const o of objects.values())if(o.type==='line'&&(chosen.has(o.from)||chosen.has(o.to)))chosen.add(o.id);return[...chosen]}
-export function duplicateObjects(objects,ids,newId){
+export function duplicateObjects(objects,ids,newId,delta={x:25,y:25}){
   const chosen=new Set(ids);for(const o of objects.values())if(o.type==='line'&&chosen.has(o.from)&&chosen.has(o.to))chosen.add(o.id);
   const counts=new Map();for(const id of chosen){const group=objects.get(id)?.groupId;if(group)counts.set(group,(counts.get(group)||0)+1)}
   const groups=new Map();for(const o of objects.values())if(chosen.has(o.id)&&o.groupId&&!groups.has(o.groupId))groups.set(o.groupId,newId());
   const mapping=new Map([...chosen].filter(id=>objects.has(id)).map(id=>[id,newId()]));
-  return[...mapping].map(([oldId,id],index)=>{const o=structuredClone(objects.get(oldId));const moved=translateObject(o,{x:25,y:25});return{...moved,id,locked:false,...(o.groupId?{groupId:counts.get(o.groupId)>1?groups.get(o.groupId):null}:{}),z:Date.now()+index,...(o.type==='line'?{from:mapping.get(o.from)||o.from,to:mapping.get(o.to)||o.to}:{})}});
+  return[...mapping].map(([oldId,id],index)=>{const o=structuredClone(objects.get(oldId));const moved=translateObject(o,delta);return{...moved,id,locked:false,...(o.groupId?{groupId:counts.get(o.groupId)>1?groups.get(o.groupId):null}:{}),z:Date.now()+index,...(o.type==='line'?{from:mapping.get(o.from)||o.from,to:mapping.get(o.to)||o.to}:{})}});
+}
+export function altDragCopies(objects,ids,newId){
+  const mutable=new Map([...objects].filter(([id])=>!elementLocked(objects,id))),copies=duplicateObjects(mutable,ids.filter(id=>mutable.has(id)),newId,{x:0,y:0}),copiedIds=new Set(copies.map(o=>o.id)),geometryObjects=new Map([...objects,...copies.map(o=>[o.id,o])]);
+  for(const copy of copies){
+    if(copy.type==='sticky')copy.text='';
+    if(copy.type!=='line'||copy.free)continue;
+    // Connections within the copied selection stay bound. External ends become movable points.
+    const geometry=connectionGeometry(copy,geometryObjects);if(!geometry)continue;
+    for(const [key,point] of [['from',geometry.start],['to',geometry.end]])if(copy[key]&&!copiedIds.has(copy[key])){copy[key+'Point']={...point};delete copy[key];delete copy[key+'Side'];delete copy[key+'Anchor']}
+  }
+  return copies;
 }

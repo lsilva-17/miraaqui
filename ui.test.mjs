@@ -77,6 +77,42 @@ test('Alt click and canceled Alt drag do not create a note or save a change',asy
 });
 
 const sticky=()=>({id:'source',type:'sticky',x:100,y:100,w:180,h:160,color:'#c9e8ff',text:'Original'});
+test('Frame é selecionado pelo interior, pode ser movido e os objetos internos continuam selecionáveis',async()=>{
+  const app=await ui(),frame={...sticky(),type:'frame',w:500,h:400};app.state.objects.set('source',frame);
+  app.vp.onpointerdown(pointer(app,500,450));app.vp.onpointerup(pointer(app,500,450));assert.deepEqual([...app.state.selection],['source']);assert.equal(app.node('created-textarea').value,undefined);
+  app.vp.onpointerdown(pointer(app,500,450));app.vp.onpointermove(pointer(app,700,550));app.vp.onpointerup(pointer(app,700,550));await app.state.pending;assert.equal(app.state.objects.get('source').x,200);assert.equal(app.state.objects.get('source').y,150);
+  app.undo();await app.state.pending;assert.equal(app.state.objects.get('source').x,100);
+  app.state.objects.set('inside',{...sticky(),id:'inside',x:140,y:140});const target={dataset:{id:'inside'},closest(s){return s==='[data-id]'?this:null}};
+  app.vp.onpointerdown({...pointer(app,450,400),target});app.vp.onpointerup({...pointer(app,450,400),target});assert.deepEqual([...app.state.selection],['inside']);
+  app.state.tool='line';app.vp.onpointerdown(pointer(app,800,650));app.vp.onpointermove(pointer(app,900,750));app.vp.onpointerup(pointer(app,900,750));await app.state.pending;assert.equal([...app.state.objects.values()].filter(o=>o.type==='line'&&o.free).length,1);
+});
+test('Alt arraste duplica formas, frames, textos, imagens, desenhos, linhas e roadmap preservando o conteúdo',async()=>{
+  const fixtures=[...shapes.SHAPE_TYPES,'frame','text','image','pen','roadmap','line'];
+  for(const type of fixtures){
+    const app=await ui(),source={...sticky(),type,text:'Conteúdo',textStyle:{fontFamily:'Poppins',fontSize:21,color:'#045077'},...(type==='frame'?{frameStyle:{...properties.DEFAULT_FRAME_STYLE,opacity:45}}:{}),...(shapes.SHAPE_TYPES.includes(type)?{shapeStyle:{...shapes.DEFAULT_SHAPE_STYLE,opacity:65}}:{}),...(type==='image'?{src:'data:image/png;base64,test'}:{}),...(['line','pen'].includes(type)?{points:[[0,0],[1,1]],...(type==='line'?{free:true,lineStyle:{start:'none',end:'arrow',pattern:'dashed',width:3}}:{})}:{}),...(type==='roadmap'?{roadmap:roadmap.newRoadmap('source',new Date('2026-11-04T12:00:00Z')).roadmap}:{})};
+    app.state.objects.set('source',source);app.vp.onpointerdown(pointer(app,320,280,{alt:true}));app.vp.onpointermove(pointer(app,560,400,{alt:true}));app.vp.onpointerup(pointer(app,560,400,{alt:true}));await app.state.pending;
+    const copy=[...app.state.objects.values()].find(o=>o.id!=='source');assert.ok(copy,type);assert.equal(copy.type,type);assert.equal(copy.x,220);assert.equal(copy.y,160);assert.equal(copy.text,source.text);assert.equal(copy.color,source.color);assert.equal(copy.w,source.w);assert.equal(copy.h,source.h);
+    for(const key of ['textStyle','shapeStyle','frameStyle','lineStyle','points','src','roadmap'])assert.deepEqual(copy[key],source[key],type+' '+key);
+    assert.deepEqual(app.state.objects.get('source'),source);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);app.undo();await app.state.pending;assert.equal(app.state.objects.size,1);app.redo();await app.state.pending;assert.equal(app.state.objects.size,2);
+  }
+});
+test('Alt arraste duplica grupos com conexões internas e permite cancelar a cópia inteira',async()=>{
+  for(const cancel of [false,true]){
+    const app=await ui(),a={...sticky(),type:'rect',groupId:'group'},b={...a,id:'second',x:400},line={id:'connection',type:'line',from:'source',to:'second',x:0,y:0,w:1,h:1,color:'#000000',text:'Ligação'};
+    for(const o of [a,b,line])app.state.objects.set(o.id,o);app.vp.onpointerdown(pointer(app,320,280,{alt:true}));app.vp.onpointermove(pointer(app,560,400,{alt:true}));if(cancel)app.finishDrag(true);else app.vp.onpointerup(pointer(app,560,400,{alt:true}));await app.state.pending;
+    if(cancel){assert.equal(app.state.objects.size,3);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0);continue}
+    const copies=[...app.state.objects.values()].filter(o=>!['source','second','connection'].includes(o.id)),cards=copies.filter(o=>o.type==='rect'),copyLine=copies.find(o=>o.type==='line');assert.equal(copies.length,3);assert.equal(cards[0].groupId,cards[1].groupId);assert.notEqual(cards[0].groupId,'group');assert.equal(copyLine.from,cards[0].id);assert.equal(copyLine.to,cards[1].id);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects'))[0].body.changes.length,3);app.undo();await app.state.pending;assert.equal(app.state.objects.size,3);
+  }
+});
+test('Alt arraste de seta ligada cria cópia com pontas móveis sem mover os blocos originais',async()=>{
+  const app=await ui(),a={...sticky(),id:'a'},b={...a,id:'b',x:500},line={...geometry.newFreeArrow({x:0,y:0},{x:100,y:0},'source'),free:false,from:'a',to:'b',text:'Relação'};delete line.points;
+  for(const o of [a,b,line])app.state.objects.set(o.id,o);const original=geometry.connectionGeometry(line,app.state.objects);
+  app.vp.onpointerdown(pointer(app,800,410,{alt:true}));app.vp.onpointermove(pointer(app,1000,510,{alt:true}));app.vp.onpointerup(pointer(app,1000,510,{alt:true}));await app.state.pending;
+  const copy=[...app.state.objects.values()].find(o=>!['a','b','source'].includes(o.id)),path=geometry.connectionGeometry(copy,app.state.objects);assert.equal(copy.from,undefined);assert.equal(copy.to,undefined);assert.equal(path.start.x,original.start.x+100);assert.equal(path.start.y,original.start.y+50);assert.equal(path.end.x,original.end.x+100);assert.equal(path.end.y,original.end.y+50);assert.equal(app.state.objects.get('a').x,100);assert.equal(app.state.objects.get('source').from,'a');
+});
+test('Alt sem arrastar, cancelamento, bloqueio e visualização não duplicam elementos',async()=>{
+  for(const mode of ['click','cancel','locked','viewer']){const app=await ui(),source={...sticky(),type:'rect',locked:mode==='locked'};app.state.objects.set('source',source);if(mode==='viewer')app.state.user={role:'viewer'};app.vp.onpointerdown(pointer(app,320,280,{alt:true}));if(mode!=='click')app.vp.onpointermove(pointer(app,560,400,{alt:true}));if(mode==='cancel')app.finishDrag(true);else app.vp.onpointerup(pointer(app,mode==='click'?320:560,mode==='click'?280:400,{alt:true}));await app.state.pending;assert.equal(app.state.objects.size,1);assert.deepEqual(app.state.objects.get('source'),source);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,0)}
+});
 test('Arrastar entre dois cards mostra espaços iguais, salva só o card movido e desfaz o encaixe',async()=>{
   const app=await ui();for(const [id,x]of [['left',0],['source',200],['right',500]])app.state.objects.set(id,{...sticky(),id,x,w:100});
   app.vp.onpointerdown(pointer(app,500,410));app.vp.onpointermove(pointer(app,606,410));assert.equal(app.state.objects.get('source').x,250);assert.match(app.node('#spacingGuides').innerHTML,/150 px/);assert.equal(app.state.objects.get('left').x,0);assert.equal(app.state.objects.get('right').x,500);
