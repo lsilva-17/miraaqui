@@ -110,3 +110,10 @@ input:not([type=color]):not([type=checkbox]),textarea,[contenteditable=true]{cur
 #selectionbar :is(.object-quick-controls,.text-quick-controls) :is(input,select):focus{border-color:#f0612d;box-shadow:0 0 0 2px #f0612d15;outline:none}#selectionbar :is(.object-quick-controls,.text-quick-controls) :disabled{opacity:.45}
 @media(max-width:650px){#selectionbar.editing-selection{padding:7px;gap:2px;bottom:64px;max-height:45vh;overflow:auto}#selectionbar.editing-selection #frontBtn{display:none}#selectionbar.editing-selection #selectionCount{font-size:10px}.object-quick-controls{padding:0 4px}#selectionbar .text-quick-controls{gap:5px}#textQuickFont{width:96px}#textQuickAlign{width:87px}#selectionbar #textQuickEdit{margin-top:0}}
 #selectionbar.editing-selection :is(#duplicateBtn,#deleteBtn,#textFormatBtn) span{display:none}#selectionbar.editing-selection :is(#duplicateBtn,#deleteBtn,#textFormatBtn){min-width:33px;padding:6px}
+
+/* Inline connection labels edit on a neutral surface, independent of stroke color. */
+#elementTextEditor.line-text-editor{transform:translate(-50%,-50%);border:1px solid #4262ff;border-radius:8px;padding:8px 11px;background:#fff;line-height:1.45;min-height:0;max-height:240px;overflow-y:auto;overflow-x:hidden;box-shadow:0 0 0 3px #4262ff0d,0 3px 12px #1e131e0d;caret-color:#f0612d;text-wrap:wrap;overflow-wrap:anywhere}
+#elementTextEditor.line-text-editor::placeholder{color:#9a8e86;font-size:.85em}#elementTextEditor.line-text-editor::selection{background:#cbeef3;color:#1e131e}
+#lineTextHint{position:absolute;z-index:26;transform:translateX(-50%);padding:3px 7px;border:1px solid #ebe5df;border-radius:5px;background:#fffffff5;box-shadow:0 2px 5px #1e131e05;color:#85776d;font:400 9px/1.5 Poppins,sans-serif;white-space:nowrap;pointer-events:none;user-select:none}
+.line-label{background:transparent;border-radius:0;padding:4px 9px;line-height:1.45;box-shadow:none}
+@media(prefers-reduced-motion:reduce){#elementTextEditor.line-text-editor{transition:none}}
