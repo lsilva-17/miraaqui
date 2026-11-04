@@ -1,3 +1,4 @@
+import {isShape,shapePolygon,polygonEdge,shapeFormat} from './shapes.js';
 import {elementLocked,DEFAULT_FRAME_STYLE} from './element-properties.js';
 export function worldPoint(x,y,pan,zoom){return{x:(x-pan.x)/zoom,y:(y-pan.y)/zoom}}
 export const DEFAULT_CARD_COLOR='#ffffff',DEFAULT_LINE_COLOR='#000000';
@@ -56,14 +57,15 @@ export function resizedObject(original,delta,corner='se'){
   return{...original,w,h,x:west?original.x+original.w-w:original.x,y:north?original.y+original.h-h:original.y};
 }
 export function newConnectedCard(source,point,side,newId){
-  const sameType=['sticky','rect','ellipse','diamond'].includes(source.type);
+  const sameType=(source.type==='sticky'||isShape(source));
   const card={id:newId(),type:sameType?source.type:'sticky',x:0,y:0,w:sameType?source.w:180,h:sameType?source.h:160,text:'Nova ideia',color:DEFAULT_CARD_COLOR,z:Date.now()};
+  if(isShape(source)){card.shapeStyle=shapeFormat(source);card.color=source.color;card.text=''}
   card.x=point.x-card.w/2;card.y=point.y-card.h/2;
   const line={id:newId(),type:'line',x:0,y:0,w:1,h:1,text:'',color:DEFAULT_LINE_COLOR,from:source.id,to:card.id,fromSide:side,z:Date.now()+1};
   return{card,line};
 }
 export function quickConnectedCardPoint(source,side,objects){
-  const sameType=['sticky','rect','ellipse','diamond'].includes(source.type),w=sameType?source.w:180,h=sameType?source.h:160,n=normals[side]||normals.right,horizontal=!!n.x;
+  const sameType=(source.type==='sticky'||isShape(source)),w=sameType?source.w:180,h=sameType?source.h:160,n=normals[side]||normals.right,horizontal=!!n.x;
   const point={x:source.x+source.w/2+n.x*(source.w/2+w/2+100),y:source.y+source.h/2+n.y*(source.h/2+h/2+100)};
   const obstacles=[...objects.values()].filter(o=>o.id!==source.id&&!['line','pen','frame'].includes(o.type));
   for(let i=0;i<=obstacles.length;i++){
@@ -80,6 +82,7 @@ export function newFreeArrow(start,end,id){
 export function edgePoint(o,target,side,anchor){
   if(anchor)return{x:o.x+anchor.x*o.w,y:o.y+anchor.y*o.h};
   const center={x:o.x+o.w/2,y:o.y+o.h/2};
+  if(shapePolygon(o)){const direction=normals[side];return polygonEdge(o,direction?{x:center.x+direction.x*o.w,y:center.y+direction.y*o.h}:target)}
   if(normals[side])return{x:center.x+normals[side].x*o.w/2,y:center.y+normals[side].y*o.h/2};
   let dx=target.x-center.x,dy=target.y-center.y;if(dx===0&&dy===0)dx=1;
   const rx=o.w/2,ry=o.h/2;
@@ -115,7 +118,7 @@ function routedLine(start,end,route,n1,n2){
 export function attachmentAt(object,point){
   const x=Math.max(0,Math.min(1,(point.x-object.x)/object.w)),y=Math.max(0,Math.min(1,(point.y-object.y)/object.h));
   let side=[['left',x],['right',1-x],['top',y],['bottom',1-y]].sort((a,b)=>a[1]-b[1])[0][0],anchor;
-  if(['ellipse','diamond'].includes(object.type)){const p=edgePoint(object,point);anchor={x:(p.x-object.x)/object.w,y:(p.y-object.y)/object.h}}
+  if(object.type==='ellipse'||shapePolygon(object)){const p=edgePoint(object,point);anchor={x:(p.x-object.x)/object.w,y:(p.y-object.y)/object.h}}
   else anchor={x:side==='left'?0:side==='right'?1:x,y:side==='top'?0:side==='bottom'?1:y};
   return{id:object.id,side,anchor};
 }

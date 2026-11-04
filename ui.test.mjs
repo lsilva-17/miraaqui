@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import * as geometry from './public/canvas-geometry.js';
 import * as properties from './public/element-properties.js';
 import * as roadmap from './public/roadmap.js';
+import * as shapes from './public/shapes.js';
 
 // Run the real UI handlers with a minimal DOM and an in-memory save endpoint.
 // This covers gestures and undo without browser input limitations or production data.
@@ -16,15 +17,15 @@ async function ui(){
       getBoundingClientRect(){return {left:0,top:0,width:1200,height:700}},querySelector(){return null},querySelectorAll(){return []}});
     return nodes.get(selector);
   };
-  const tools=['select','hand','sticky','text','rect','ellipse','diamond','line','pen','frame'].map(tool=>Object.assign(node('tool-'+tool),{dataset:{tool}}));
+  const tools=['select','hand','shapes','sticky','text','rect','ellipse','diamond','line','pen','frame'].map(tool=>Object.assign(node('tool-'+tool),{dataset:{tool}}));
   const colors=Array.from({length:10},(_,i)=>Object.assign(node('color-'+i),{dataset:{noteColor:i===0?'#fff0a9':'#c9e8ff'}}));
   const arrangeButtons=['left','centerX','right','top','centerY','bottom','distributeX','distributeY'].map(action=>Object.assign(node('arrange-'+action),{dataset:{arrange:action}}));
   const document={createElement:tag=>node('created-'+tag),querySelector:selector=>selector==='dialog[open]'?null:node(selector),querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:s==='[data-arrange]'?arrangeButtons:[],
     elementsFromPoint(){return []},elementFromPoint(){return {closest(){return null}}},getElementById(id){return node(id)},addEventListener(type,fn){listeners.set(type,fn)},documentElement:node('root')};
-  const context=vm.createContext({...geometry,...properties,...roadmap,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
+  const context=vm.createContext({...geometry,...properties,...roadmap,...shapes,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
     structuredClone,setTimeout,clearTimeout,console,fetch:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({})}}});
   const source=(await readFile(new URL('./public/app.js',import.meta.url),'utf8')).replace(/^import[^\n]+\n/,'').replace(/init\(\);\s*$/,'');
-  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,template,saveRoadmap,saveInlineRoadmap,beginTextEdit,finishTextEdit,applyAppearance,nodes:null};',context);
+  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,template,saveRoadmap,saveInlineRoadmap,beginTextEdit,finishTextEdit,applyAppearance,chooseShape,svgExport,nodes:null};',context);
   const app=context.ui;app.state.board={id:'fixture'};app.state.pan={x:100,y:50};app.state.zoom=2;
   const target={dataset:{id:'source'},closest:s=>s==='[data-id]'?target:null};
   const event=(x,y,alt=true)=>({button:0,pointerId:1,clientX:x,clientY:y,altKey:alt,target,preventDefault(){}});
@@ -340,4 +341,14 @@ test('Clique com pequeno movimento funciona; cancelar, bloquear e visualizar nã
     await app.state.pending;assert.equal(app.state.objects.size,['jitter','keyboard'].includes(mode)?3:1);
     if(['locked','viewer'].includes(mode)){app.listeners.get('#viewport:click')({...event,detail:0});await app.state.pending;assert.equal(app.state.objects.size,1)}
   }
+});
+
+test('Formas são desenhadas na área arrastada, ficam sem título e desfazem em uma ação',async()=>{
+  for(const key of ['rounded','circle','triangle','hexagon','pill']){const app=await ui();app.chooseShape(key);app.vp.onpointerdown(pointer(app,700,550,{blank:true}));app.vp.onpointermove(pointer(app,300,250,{blank:true}));assert.match(app.node('#connectionPreview').innerHTML,/<(rect|ellipse|polygon)/);assert.equal(app.state.objects.size,0);app.vp.onpointerup(pointer(app,300,250,{blank:true}));await app.state.pending;const o=[...app.state.objects.values()][0];assert.equal(o.x,100);assert.equal(o.text,'');assert.equal(o.shapeStyle.opacity,100);assert.equal(o.color,'#ffffff');assert.equal(o.shapeStyle.pattern,'solid');assert.match(app.node('#objects').innerHTML,/shape-surface/);app.undo();await app.state.pending;assert.equal(app.state.objects.size,0);app.redo();await app.state.pending;assert.equal(app.state.objects.size,1)}
+});
+test('Clique cria forma padrão, cancelar não salva e visualizador não pode criar formas',async()=>{
+  const app=await ui();app.chooseShape('hexagon');app.vp.onpointerdown(pointer(app,400,300,{blank:true}));app.vp.onpointerup(pointer(app,400,300,{blank:true}));await app.state.pending;const shape=[...app.state.objects.values()][0];assert.equal(shape.type,'hexagon');assert.equal(shape.w,180);assert.equal(shape.h,140);const saved=app.requests.filter(r=>r.url.endsWith('/objects')).length;app.chooseShape('triangle');app.vp.onpointerdown(pointer(app,400,300,{blank:true}));app.vp.onpointermove(pointer(app,600,500,{blank:true}));app.finishDrag(true);assert.equal(app.state.objects.size,1);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,saved);app.state.user={role:'viewer'};app.chooseShape('circle');assert.equal(app.state.tool,'shape');app.vp.onpointerdown(pointer(app,800,600,{blank:true}));app.vp.onpointerup(pointer(app,800,600,{blank:true}));assert.equal(app.state.objects.size,1);
+});
+test('Aparência de formas persiste em grupo, mantém texto e sai corretamente no SVG',async()=>{
+  const app=await ui();for(const key of ['diamond','hexagon']){const o=shapes.newShapeFromDrag(key,{x:100,y:100},{x:300,y:240},key);o.text='Atividade';app.state.objects.set(o.id,o)}app.selectObjects(['diamond','hexagon']);app.applyAppearance('shape',{strokeColor:'#f0612d',strokeWidth:3,pattern:'dashed',opacity:25});await app.state.pending;for(const o of app.state.objects.values()){assert.equal(o.text,'Atividade');assert.equal(o.shapeStyle.opacity,25)}assert.match(app.svgExport(),/fill-opacity="0.25"/);assert.match(app.svgExport(),/stroke-dasharray="12 9"/);assert.match(app.svgExport(),/Atividade/);app.undo();await app.state.pending;assert.equal(app.state.objects.get('hexagon').shapeStyle.opacity,100);app.state.objects.get('hexagon').locked=true;app.applyAppearance('shape',{opacity:0});await app.state.pending;assert.equal(app.state.objects.get('hexagon').shapeStyle.opacity,100);
 });

@@ -129,3 +129,11 @@ test('Formas reta, angular e curva preservam âncoras e seleção usa o trajeto 
   const free=newFreeArrow({x:0,y:0},{x:200,y:100},'free');assert.match(connectionGeometry({...free,lineStyle:{route:'curved'}},new Map()).path,/ C/);const elbow={...free,lineStyle:{route:'elbow'}},map=new Map([[elbow.id,elbow]]);assert.deepEqual(selectionInArea(map,{x:97,y:40,w:6,h:10}),['free']);assert.deepEqual(selectionInArea(map,{x:10,y:40,w:5,h:5}),[]);
   assert.ok(propertyError({type:'line',lineStyle:{route:'not-a-route'}}));
 });
+
+import {SHAPES,newShapeFromDrag,shapeSvg,shapeFormat} from './public/shapes.js';
+test('Todas as formas têm estilo validado, fundo independente do texto e criação reversa',()=>{
+  for(const [key]of SHAPES){const o=newShapeFromDrag(key,{x:300,y:250},{x:100,y:100},key);assert.equal(propertyError(o),null);assert.equal(o.x,100);assert.equal(o.text,'');assert.equal(o.color,'#ffffff');assert.match(shapeSvg(o),/fill-opacity="1"/);assert.equal(propertyError({...o,shapeStyle:{opacity:101}}),'Aparência da forma inválida.');assert.ok(propertyError({...o,shapeStyle:{strokeColor:'url(evil)'}}));assert.ok(propertyError({...o,shapeStyle:{position:'fixed'}}));assert.ok(propertyError({...o,shapeStyle:{radius:Infinity}}))}assert.ok(propertyError({type:'sticky',shapeStyle:{opacity:10}}));
+});
+test('Conexões usam a borda real de triângulos e hexágonos e acompanham seu movimento',()=>{
+  const tri=newShapeFromDrag('triangle',{x:0,y:0},{x:200,y:200},'tri'),hex=newShapeFromDrag('hexagon',{x:400,y:0},{x:600,y:200},'hex'),objects=new Map([[tri.id,tri],[hex.id,hex]]),line={type:'line',from:'tri',to:'hex',lineStyle:{route:'straight'}};let g=connectionGeometry(line,objects);assert.deepEqual(g.start,{x:150,y:100});assert.deepEqual(g.end,{x:400,y:100});const anchor=attachmentAt(tri,{x:180,y:80});assert.ok(anchor.anchor.x<1);const linked={...line,fromSide:anchor.side,fromAnchor:anchor.anchor};objects.set('tri',{...tri,x:50});g=connectionGeometry(linked,objects);assert.equal(g.start.x,50+anchor.anchor.x*200);const card=newConnectedCard(hex,{x:800,y:100},'right',()=>crypto.randomUUID()).card;assert.equal(card.type,'hexagon');assert.deepEqual(card.shapeStyle,shapeFormat(hex));assert.equal(card.text,'');
+});
