@@ -21,16 +21,17 @@ async function ui(){
   const tools=['select','hand','shapes','sticky','text','rect','ellipse','diamond','line','pen','frame'].map(tool=>Object.assign(node('tool-'+tool),{dataset:{tool}}));
   const colors=Array.from({length:10},(_,i)=>Object.assign(node('color-'+i),{dataset:{noteColor:i===0?'#fff0a9':'#c9e8ff'}}));
   const arrangeButtons=['left','centerX','right','top','centerY','bottom','distributeX','distributeY'].map(action=>Object.assign(node('arrange-'+action),{dataset:{arrange:action}}));
-  const document={createElement:tag=>node('created-'+tag),querySelector:selector=>selector==='dialog[open]'?null:node(selector),querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:s==='[data-arrange]'?arrangeButtons:[],
+  const textPositionButtons=[...['left','center','right'].map(textAlign=>Object.assign(node('text-align-'+textAlign),{dataset:{textAlign}})),...['top','middle','bottom'].map(textVertical=>Object.assign(node('text-vertical-'+textVertical),{dataset:{textVertical}}))];
+  const document={createElement:tag=>node('created-'+tag),querySelector:selector=>selector==='dialog[open]'?null:node(selector),querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:s==='[data-arrange]'?arrangeButtons:s==='[data-text-align], [data-text-vertical]'?textPositionButtons:[],
     elementsFromPoint(){return []},elementFromPoint(){return {closest(){return null}}},getElementById(id){return node(id)},addEventListener(type,fn){listeners.set(type,fn)},documentElement:node('root')};
   const context=vm.createContext({...geometry,...properties,...roadmap,...shapes,...importing,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
-    structuredClone,setTimeout,clearTimeout,console,fetch:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({})}}});
+    location:{hash:'',assign(url){requests.push({navigation:url})}},URLSearchParams,structuredClone,setTimeout,clearTimeout,console,fetch:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({})}}});
   const source=(await readFile(new URL('./public/app.js',import.meta.url),'utf8')).replace(/^import[^\n]+\n/,'').replace(/init\(\);\s*$/,'');
-  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,template,saveRoadmap,saveInlineRoadmap,beginTextEdit,finishTextEdit,applyAppearance,chooseShape,svgExport,applyExternalPayload,openImportPanel,avatarContent,nodes:null};',context);
+  vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,template,saveRoadmap,saveInlineRoadmap,beginTextEdit,finishTextEdit,applyAppearance,chooseShape,svgExport,applyExternalPayload,openImportPanel,avatarContent,syncGooglePhoto,setGoogleEnabled(value){googleEnabled=value},nodes:null};',context);
   const app=context.ui;app.state.board={id:'fixture'};app.state.pan={x:100,y:50};app.state.zoom=2;
   const target={dataset:{id:'source'},closest:s=>s==='[data-id]'?target:null};
   const event=(x,y,alt=true)=>({button:0,pointerId:1,clientX:x,clientY:y,altKey:alt,target,preventDefault(){}});
-  return {...app,requests,node,tools,colors,arrangeButtons,event,listeners};
+  return {...app,requests,node,tools,colors,arrangeButtons,textPositionButtons,event,listeners};
 }
 
 test('Painel visual mostra prévia sem salvar, aplica com um clique e permite desfazer com o painel aberto',async()=>{
@@ -472,4 +473,15 @@ test('Colar em campo de texto não cria objetos e visualizador não importa',asy
 });
 test('Importação assíncrona não grava em outro quadro após navegação',async()=>{
   const app=await ui();let release;const file={name:'clipboard.json',type:'application/json',size:100,text:()=>new Promise(resolve=>release=resolve)},pending=app.applyExternalPayload({files:[file]});app.state.board={id:'outro'};release(JSON.stringify({format:'elo',objects:[{...sticky()}]}));const result=await pending;assert.equal(result,null);assert.equal(app.state.objects.size,0);assert.equal(app.requests.length,0);
+});
+
+test('Controles visuais aplicam as seis posições em grupo, mostram o estado e mantêm desfazer',async()=>{
+ const app=await ui();for(const id of ['source','second'])app.state.objects.set(id,{...sticky(),id});app.selectObjects(['source','second']);
+ for(const button of app.textPositionButtons){const key=button.dataset.textAlign?'align':'vertical',value=button.dataset.textAlign||button.dataset.textVertical;button.onclick();await app.state.pending;for(const o of app.state.objects.values())assert.equal(o.textStyle[key],value);assert.equal(button.attributes['aria-pressed'],'true')}
+ app.undo();await app.state.pending;for(const o of app.state.objects.values())assert.equal(o.textStyle.vertical,'middle');
+ app.node('#textAlignmentBtn').onclick();app.node('#textVerticalBtn').onclick();assert.equal(app.node('#textAlignmentPanel').hidden,true);assert.equal(app.node('#textVerticalPanel').hidden,false);app.listeners.get('#selectionbar:keydown')({key:'Escape',preventDefault(){},stopPropagation(){}});assert.equal(app.node('#textVerticalPanel').hidden,true);assert.equal(app.node('#textVerticalBtn').focused,true);
+ app.state.user={role:'viewer'};app.selectObjects(['source','second']);for(const button of app.textPositionButtons)assert.equal(button.disabled,true);const before=JSON.stringify([...app.state.objects.values()]);app.textPositionButtons[0].onclick();assert.equal(JSON.stringify([...app.state.objects.values()]),before);
+});
+test('Sincronizar foto usa o mesmo login Google, preserva o quadro e aguarda salvar',async()=>{
+ const app=await ui();app.state.board.id='a'.repeat(32);app.setGoogleEnabled(false);app.syncGooglePhoto();assert.equal(app.requests.length,0);app.setGoogleEnabled(true);app.state.dirty=true;app.syncGooglePhoto();assert.equal(app.requests.length,0);app.state.dirty=false;app.syncGooglePhoto();assert.equal(app.requests[0].navigation,'/api/auth/google?board='+'a'.repeat(32));
 });
