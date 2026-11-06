@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {database} from './lib/database.mjs';
 import {allowedEmail} from './lib/access-policy.mjs';
+import {googleConfig,googleRoutes} from './lib/google-auth.mjs';
 import {memberPublic,memberUpdate} from './lib/member-policy.mjs';
 import {roadmapError} from './public/roadmap.js';
 import {propertyError,elementLocked} from './public/element-properties.js';
@@ -19,7 +20,7 @@ async function body(req){if(req.body&&typeof req.body==='object')return req.body
 async function hashPassword(v){if(typeof v!=='string'||v.length<10||v.length>200)status(400,'Use uma senha de 10 a 200 caracteres.');const salt=id();return salt+':'+(await scrypt(v,salt,64)).toString('hex')}
 function tokenFrom(req){return(req.headers.cookie||'').split(';').map(s=>s.trim()).find(s=>s.startsWith('elo='))?.slice(4)}
 async function auth(db,req){const token=tokenFrom(req);if(!token)return null;const user=await db.one('SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id WHERE token=? AND expires>?',[digest(token),Date.now()]);return user&&allowedEmail(user.email)&&(user.status||'active')==='active'?user:null}
-async function session(db,res,user){const token=id()+id();await db.query('INSERT INTO sessions VALUES(?,?,?)',[digest(token),user.id,Date.now()+7*86400000]);res.setHeader('Set-Cookie',`elo=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${secure()?'; Secure':''}`)}
+async function session(db,res,user){const token=id()+id();await db.query('INSERT INTO sessions VALUES(?,?,?)',[digest(token),user.id,Date.now()+7*86400000]);res.setHeader('Set-Cookie',[].concat(res.getHeader('Set-Cookie')||[],`elo=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${secure()?'; Secure':''}`))}
 const eventStatement=(board,event)=>['INSERT INTO events(board_id,payload,created) VALUES(?,?,?)',[board,JSON.stringify(event),Date.now()]];
 async function org(db){return(await db.one("SELECT value FROM settings WHERE key='org'"))?.value||'Minha companhia'}
 function validateObject(o){
@@ -53,21 +54,22 @@ async function stream(db,req,res,board,user,client){
     const poll=async()=>{if(ended)return;try{
       if(!await auth(db,req)){write({type:'access-revoked'});end();return}if(Date.now()-lastCheck>10000){await db.query('UPDATE presence SET seen=? WHERE board_id=? AND client=?',[Date.now(),board,client]);lastCheck=Date.now()}
       const rows=await db.query('SELECT seq,payload FROM events WHERE board_id=? AND seq>? ORDER BY seq LIMIT 100',[board,last]);for(const row of rows){write(JSON.parse(row.payload),row.seq);last=Number(row.seq)}
-      const online=await db.query('SELECT presence.*,users.name,users.email,users.admin,users.status,users.access FROM presence JOIN users ON users.id=presence.user_id WHERE board_id=? AND seen>?',[board,Date.now()-30000]);
+      const online=await db.query('SELECT presence.*,users.name,users.email,users.admin,users.status,users.access,users.avatar_url FROM presence JOIN users ON users.id=presence.user_id WHERE board_id=? AND seen>?',[board,Date.now()-30000]);
       write({type:'presence',users:[...new Map(online.map(p=>[p.user_id,safeUser({...p,id:p.user_id})])).values()]});
       for(const p of online)if(p.client!==client&&p.x!==null&&p.y!==null)write({type:'cursor',user:safeUser({...p,id:p.user_id}),client:p.client,x:p.x,y:p.y});res.write(': ping\n\n');
     }catch{end();return}if(!ended)timer=setTimeout(poll,1500)};void poll();
   });
 }
 export async function handler(req,res){
-  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data: blob: https://lh1.googleusercontent.com https://lh2.googleusercontent.com https://lh3.googleusercontent.com https://lh4.googleusercontent.com https://lh5.googleusercontent.com https://lh6.googleusercontent.com; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");
   const url=new URL(req.url,'http://localhost'),p=url.pathname,method=req.method;
   const send=(v,code=200)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(v))};
   try{
     if(!p.startsWith('/api/')){const file={'/':'index.html','/app.js':'app.js','/studio.css':'studio.css','/icons.svg':'icons.svg','/roadmap.js':'roadmap.js','/shapes.js':'shapes.js','/import-content.js':'import-content.js','/vendor/lz-string.js':'vendor/lz-string.js','/vendor/lz-string-LICENSE.txt':'vendor/lz-string-LICENSE.txt','/canvas-geometry.js':'canvas-geometry.js','/element-properties.js':'element-properties.js','/style.css':'style.css','/caaqui.css':'caaqui.css','/brand/caaqui-logo.png':'brand/caaqui-logo.png','/brand/caaqui-symbol.png':'brand/caaqui-symbol.png','/favicon.svg':'favicon.svg','/favicon.ico':'favicon.ico','/favicon-32.png':'favicon-32.png','/apple-touch-icon.png':'apple-touch-icon.png'}[p]||(/^\/cursors\/(select|hand|grabbing|point|move|cross|text|pen|resize-nwse|resize-nesw)\.svg$/.test(p)?p.slice(1):null)||(/^\/fonts\/poppins-(400|500|600|700)\.ttf$/.test(p)?p.slice(1):null);if(!file)status(404,'Não encontrado.');res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.png')?'image/png':file.endsWith('.svg')?'image/svg+xml':file.endsWith('.ico')?'image/x-icon':file.endsWith('.ttf')?'font/ttf':'text/html; charset=utf-8');res.end(await readFile(path.join(root,'public',file)));return}
     if(!['GET','HEAD'].includes(method)&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)status(403,'Origem inválida.');
     const db=await database();
-    if(p==='/api/status'&&method==='GET')return send({setup:!await db.one('SELECT id FROM users LIMIT 1'),org:await org(db)});
+    if(p==='/api/status'&&method==='GET')return send({setup:!await db.one('SELECT id FROM users LIMIT 1'),org:await org(db),google:!!googleConfig()});
+    if(await googleRoutes({db,req,res,url,session,hashPassword}))return;
     if(['/api/setup','/api/register','/api/login'].includes(p)&&method==='POST'){
       const b=await body(req),email=text(b.email,254).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))status(400,'E-mail inválido.');
       if(!allowedEmail(email))status(403,'Acesso restrito a e-mails @caaqui.com. Use seu e-mail corporativo.');
@@ -93,7 +95,7 @@ export async function handler(req,res){
     if(p==='/api/me'&&method==='GET')return send({user:safeUser(user),org:await org(db)});
     if(p==='/api/logout'&&method==='POST'){const token=tokenFrom(req);if(token)await db.query('DELETE FROM sessions WHERE token=?',[digest(token)]);res.setHeader('Set-Cookie',`elo=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure()?'; Secure':''}`);return send({ok:true})}
     if(p==='/api/invites'&&method==='POST'){if(!user.admin)status(403,'Somente administradores podem convidar.');const token=id();await db.query('INSERT INTO invites VALUES(?,?)',[digest(token),Date.now()+7*86400000]);return send({token})}
-    if(p==='/api/members'&&method==='GET')return send((await db.query('SELECT id,name,email,admin,status,access FROM users'+(user.admin?'':" WHERE status='active'")+' ORDER BY name')).map(memberPublic));
+    if(p==='/api/members'&&method==='GET')return send((await db.query('SELECT id,name,email,admin,status,access,avatar_url FROM users'+(user.admin?'':" WHERE status='active'")+' ORDER BY name')).map(memberPublic));
     const memberRoute=p.match(/^\/api\/members\/([a-f0-9]{32})(?:\/(history))?$/);
     if(memberRoute){
       if(!user.admin)status(403,'Somente administradores podem gerenciar membros.');const targetId=memberRoute[1],old=await db.one('SELECT * FROM users WHERE id=?',[targetId]);if(!old)status(404,'Membro não encontrado.');

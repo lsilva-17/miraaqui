@@ -26,9 +26,9 @@ Para migrar uma instalação local para um banco remoto vazio, use `node --env-f
 
 O cadastro público de administrador é bloqueado na Vercel por padrão. Para inicializar uma instalação completamente nova sem importação, configure `ELO_ADMIN_EMAIL` e um `ELO_SETUP_TOKEN` aleatório; forneça `setupToken` junto à requisição inicial de cadastro de administrador. Remova o token após a configuração. Nunca exponha o token no frontend nem em URLs.
 
-Cadastro, login e sessões existentes aceitam somente e-mails cujo domínio seja exatamente `caaqui.com` (sem subdomínios ou sufixos parecidos). A verificação ocorre no servidor, incluindo a revalidação das conexões de colaboração. Convites de uso único continuam obrigatórios. Esta regra valida o domínio informado; a versão atual ainda não comprova a posse da caixa postal por e-mail ou SSO.
+Cadastro, login e sessões existentes aceitam somente e-mails cujo domínio seja exatamente `caaqui.com` (sem subdomínios ou sufixos parecidos). A verificação ocorre no servidor, incluindo a revalidação das conexões de colaboração. Convites de uso único continuam obrigatórios. O login por senha valida o domínio informado. O login Google opcional comprova a identidade corporativa pelo Google Workspace; novos membros continuam exigindo convite. Veja [GOOGLE-LOGIN.md](GOOGLE-LOGIN.md) para ativar o cliente OAuth.
 
-Cookies de sessão são HttpOnly, SameSite=Strict e Secure na Vercel. A API exige autenticação para ler e editar os quadros. A aplicação preserva o modelo de contas e senhas da instalação local; os logins de GitHub/Vercel administram a infraestrutura, não substituem o login do Miraaqui.
+Cookies de sessão são HttpOnly, SameSite=Strict e Secure na Vercel. A API exige autenticação para ler e editar os quadros. A aplicação preserva as contas e senhas da instalação local e permite vincular o login Google ao cadastro existente; os logins de GitHub/Vercel administram a infraestrutura, não substituem o login do Miraaqui.
 
 ## Colaboração e limites
 
@@ -44,7 +44,7 @@ O visual utiliza a identidade da Caaqui: Poppins servido localmente, paleta lara
 
 Ao selecionar um bloco, nota, texto, imagem ou frame, aparecem quatro bolinhas azuis afastadas do bloco, uma no centro de cada lado, com borda branca. Arraste qualquer uma até outro elemento para conectar a partir desse lado. Os círculos brancos dos cantos permitem redimensionar. A seta segue os elementos quando são movidos ou redimensionados. Também é possível clicar na bolinha e depois no destino, ou usar a ferramenta L. Soltar a seta no espaço vazio do quadro cria um card novo, centralizado no ponto de soltura e já conectado à origem. O card mantém tipo, cor e tamanho de notas e formas; a partir de texto, imagem ou frame é criada uma nota adesiva. Soltar sobre outro elemento conecta ao existente. Um único Desfazer remove o novo card e sua seta juntos; Escape cancela o gesto. Linhas e traços de caneta não têm bolinhas.
 
-Não há CRDT, edição offline, SSO, permissões por quadro, recuperação de senha ou histórico de versões. O timer é pessoal. Frames são organizadores visuais e não agrupam automaticamente o movimento das notas. Excluir um quadro é permanente. Faça backups no provedor do banco. Para liberar uso corporativo, confira o plano da Vercel: Hobby é limitado a uso pessoal não comercial.
+Há login Google opcional para contas Google Workspace @caaqui.com. Não há CRDT, edição offline, permissões por quadro, recuperação de senha ou histórico de versões. O timer é pessoal. Frames são organizadores visuais e não agrupam automaticamente o movimento das notas. Excluir um quadro é permanente. Faça backups no provedor do banco. Para liberar uso corporativo, confira o plano da Vercel: Hobby é limitado a uso pessoal não comercial.
 
 Credenciais, bancos, arquivos temporários e materiais da empresa que não pertencem ao aplicativo são excluídos do Git e da publicação. `npm test` executa testes locais sem acessar a base da Vercel, salvo se você fornecer explicitamente `DATABASE_URL` ao processo.
 
@@ -114,3 +114,11 @@ No quadro, use Ctrl/Cmd+V para colar o conteúdo real da área de transferência
 Conteúdo externo editável recebe tipografia, alinhamento, espessura e espaçamento interno padrão do Miraaqui, preservando as cores, os tipos de forma e a disposição/conexões. Backups e cópias do próprio Miraaqui preservam a formatação. Não há garantia de reprodução integral de efeitos ou elementos específicos de outra ferramenta; use PNG/SVG quando a fidelidade visual for a prioridade.
 
 A conversão ocorre no navegador, antes do salvamento normal do quadro. SVGs são tratados como imagens, com scripts e referências externas removidos. Imagens são incorporadas e redimensionadas para o limite do quadro. A importação não baixa automaticamente imagens externas nem envia dados para serviços de conversão. Visualizadores não podem importar; trocar de quadro ou sessão durante a leitura cancela a adição pendente.
+
+## Edição no quadro
+
+A barra contextual reúne cor, fonte, tamanho, negrito, alinhamento, aparência e bloqueio. O menu de três pontos mantém dimensões, edição avançada de texto, duplicação, ordenação e exclusão. Textos novos são centralizados; alinhamentos escolhidos manualmente são respeitados na edição.
+
+Com a ferramenta de setas (`L`), arraste de dentro de uma nota ou forma para conectá-la a outro elemento. Soltar no vazio cria uma nota conectada. Novas conexões usam traçado angular. Selecione a seta e arraste os controles dos segmentos para ajustar seu caminho; também é possível usar as setas do teclado (Shift: passo maior), desfazer e refazer. Os extremos continuam presos aos elementos. Setas existentes mantêm seu estilo e podem ser convertidas pela opção Angular.
+
+A presença usa a foto verificada no login Google, com iniciais como alternativa. Consulte [GOOGLE-LOGIN.md](GOOGLE-LOGIN.md).
