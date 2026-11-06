@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {database} from './lib/database.mjs';
 import {allowedEmail} from './lib/access-policy.mjs';
-import {googleConfig,googleRoutes} from './lib/google-auth.mjs';
+import {googleConfig,googleRoutes,googlePhotoSyncDue} from './lib/google-auth.mjs';
 import {memberPublic,memberUpdate} from './lib/member-policy.mjs';
 import {roadmapError} from './public/roadmap.js';
 import {propertyError,elementLocked} from './public/element-properties.js';
@@ -69,7 +69,7 @@ export async function handler(req,res){
     if(!['GET','HEAD'].includes(method)&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)status(403,'Origem inválida.');
     const db=await database();
     if(p==='/api/status'&&method==='GET')return send({setup:!await db.one('SELECT id FROM users LIMIT 1'),org:await org(db),google:!!googleConfig()});
-    if(await googleRoutes({db,req,res,url,session,hashPassword}))return;
+    if(await googleRoutes({db,req,res,url,session,hashPassword,authenticate:auth}))return;
     if(['/api/setup','/api/register','/api/login'].includes(p)&&method==='POST'){
       const b=await body(req),email=text(b.email,254).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))status(400,'E-mail inválido.');
       if(!allowedEmail(email))status(403,'Acesso restrito a e-mails @caaqui.com. Use seu e-mail corporativo.');
@@ -88,11 +88,11 @@ export async function handler(req,res){
         const name=text(b.name,80),company=setup?text(b.org,80):null,hash=await hashPassword(b.password);user={id:id(),email,name,hash,admin:setup?1:0};
         try{if(!await db.createUser(user,{setup,company,invite:digest(String(b.invite||''))}))status(403,'Convite inválido ou expirado.')}catch(e){if(['23505','SQLITE_CONSTRAINT_PRIMARYKEY','SQLITE_CONSTRAINT_UNIQUE'].includes(e.code))status(409,'A conta ou companhia já foi cadastrada.');throw e}
       }
-      await session(db,res,user);return send({user:safeUser(user),org:await org(db)});
+      await session(db,res,user);return send({user:safeUser(user),org:await org(db),photoSync:p==='/api/login'&&await googlePhotoSyncDue(db,user,googleConfig(),req.headers.host)});
     }
     const user=await auth(db,req);if(!user)status(401,'Entre na sua conta para continuar.');
     if(!user.admin&&user.access==='view'&&!['GET','HEAD'].includes(method)&&p!=='/api/logout'&&!/^\/api\/boards\/[a-f0-9]{32}\/cursor$/.test(p))status(403,'Seu acesso permite somente visualização.');
-    if(p==='/api/me'&&method==='GET')return send({user:safeUser(user),org:await org(db)});
+    if(p==='/api/me'&&method==='GET')return send({user:safeUser(user),org:await org(db),photoSync:await googlePhotoSyncDue(db,user,googleConfig(),req.headers.host)});
     if(p==='/api/logout'&&method==='POST'){const token=tokenFrom(req);if(token)await db.query('DELETE FROM sessions WHERE token=?',[digest(token)]);res.setHeader('Set-Cookie',`elo=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure()?'; Secure':''}`);return send({ok:true})}
     if(p==='/api/invites'&&method==='POST'){if(!user.admin)status(403,'Somente administradores podem convidar.');const token=id();await db.query('INSERT INTO invites VALUES(?,?)',[digest(token),Date.now()+7*86400000]);return send({token})}
     if(p==='/api/members'&&method==='GET')return send((await db.query('SELECT id,name,email,admin,status,access,avatar_url FROM users'+(user.admin?'':" WHERE status='active'")+' ORDER BY name')).map(memberPublic));

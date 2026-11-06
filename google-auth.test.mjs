@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {createHash,generateKeyPairSync,sign} from 'node:crypto';
 import {OAuth2Client} from 'google-auth-library';
-import {googleConfig,googleIdentity,googleProvider,googleRoutes} from './lib/google-auth.mjs';
+import {googleConfig,googleIdentity,googleProvider,googleRoutes,googlePhotoSyncDue} from './lib/google-auth.mjs';
 import {googlePictureUrl,memberPublic} from './lib/member-policy.mjs';
 
 const config={clientId:'test-client',clientSecret:'test-secret',redirectUri:'http://localhost:4317/api/auth/google/callback'};
@@ -50,6 +50,8 @@ test('Redirect Google usa PKCE S256 e solicita apenas identidade corporativa',as
   assert.equal(url.searchParams.get('code_challenge_method'),'S256');assert.equal(url.searchParams.get('nonce'),'nonce');assert.equal(url.searchParams.get('state'),'state');
   assert.equal(url.searchParams.get('redirect_uri'),config.redirectUri);assert.equal(url.searchParams.get('scope'),'openid email profile');
   assert.equal(url.searchParams.get('code_challenge'),createHash('sha256').update(flow.verifier).digest('base64url'));
+  const silent=new URL((await googleProvider.begin(config,{state:'state',nonce:'nonce',silent:true,loginHint:'colega@caaqui.com'})).url);
+  assert.equal(silent.searchParams.get('prompt'),'none');assert.equal(silent.searchParams.get('login_hint'),'colega@caaqui.com');assert.equal(silent.searchParams.get('scope'),'openid email profile');
 });
 
 test('Fluxo OAuth preserva conta, perfil, convite único, sessão e destino; rejeita replay e suspensão',async()=>{
@@ -82,4 +84,48 @@ test('Fluxo OAuth preserva conta, perfil, convite único, sessão e destino; rej
   flow=await begin();response=await route('/api/auth/google/callback?state='+flow.state+'&error=access_denied',flow.cookie);assert.match(response.headers.Location,/cancelled/);
   response=await route('/api/auth/google','',{headers:{host:'evil.test'}});assert.match(response.headers.Location,/unavailable/);
   assert.equal((await route('/api/auth/google','',{method:'POST'})).code,405);
+});
+
+test('Sincronização automática vincula somente a conta autenticada, preserva sessão e limita tentativas por usuário',async()=>{
+  const {database}=await import('./lib/database.mjs'),db=await database();
+  const userId='photo-auto',rawSession='photo-auto-session',sessionDigest=digest(rawSession),board='c'.repeat(32);
+  await db.query('INSERT INTO users(id,email,name,hash,admin,access) VALUES(?,?,?,?,?,?)',[userId,'foto@caaqui.com','Foto local','unused',0,'view']);
+  await db.query('INSERT INTO sessions VALUES(?,?,?)',[sessionDigest,userId,Date.now()+600000]);
+  let identity={subject:'photo-auto-google',email:'foto@caaqui.com',avatarUrl:'https://lh3.googleusercontent.com/a/photo-auto'},starts=0,issued=0;
+  const current=()=>db.one('SELECT * FROM users WHERE id=?',[userId]);
+  const provider={begin:async(c,args)=>{starts++;assert.equal(args.silent,true);assert.equal(args.loginHint,'foto@caaqui.com');return {url:'https://accounts.google.com/?state='+args.state,verifier:'verifier'}},finish:async()=>identity};
+  async function route(target,cookie=''){
+    const req={method:'GET',headers:{host:'localhost:4317',cookie},socket:{remoteAddress:'photo-auto-test'}},res={headers:{},setHeader(k,v){this.headers[k]=v},writeHead(code,headers={}){this.code=code;Object.assign(this.headers,headers)},end(){}};
+    await googleRoutes({db,req,res,url:new URL(target,'http://localhost:4317'),config,provider,authenticate:async()=>cookie.includes('elo='+rawSession)?current():null,session:async()=>{issued++},hashPassword:async()=>{throw Error('Must not create users')}});return res;
+  }
+  async function reset(){await db.query('DELETE FROM settings WHERE key=?',['google_photo_sync:'+userId])}
+  async function begin(){const r=await route('/api/auth/google/photo-sync?board='+board,'elo='+rawSession);return {state:new URL(r.headers.Location).searchParams.get('state'),cookie:r.headers['Set-Cookie'].split(';')[0]}}
+  const callback=f=>'/api/auth/google/callback?state='+f.state+'&code=code';
+  assert.equal((await route('/api/auth/google/photo-sync?board='+board)).headers.Location,'/#board='+board);assert.equal(starts,0);
+  assert.equal(await googlePhotoSyncDue(db,await current(),config),true);
+  assert.equal(await googlePhotoSyncDue(db,await current(),config,'preview.vercel.app'),false);
+  const flow=await begin();assert.equal(await googlePhotoSyncDue(db,await current(),config),false);
+  assert.equal((await route('/api/auth/google/photo-sync?board='+board,'elo='+rawSession)).headers.Location,'/#board='+board);assert.equal(starts,1);
+  // Google's callback does not carry the app's SameSite=Strict cookie.
+  let result=await route(callback(flow),flow.cookie);assert.equal(result.headers.Location,'/#board='+board);assert.equal(issued,0);assert.equal((await current()).avatar_url,identity.avatarUrl);assert.equal((await current()).access,'view');assert.ok(await db.one('SELECT user_id FROM sessions WHERE token=?',[sessionDigest]));
+  assert.equal((await db.one("SELECT user_id FROM oauth_identities WHERE provider='google' AND subject=?",[identity.subject])).user_id,userId);
+  await reset();let failed=await begin();result=await route('/api/auth/google/callback?state='+failed.state+'&error=consent_required',failed.cookie);assert.equal(result.headers.Location,'/#board='+board);assert.equal(await googlePhotoSyncDue(db,await current(),config),false);assert.equal(issued,0);
+  await reset();identity={...identity,email:'outra@caaqui.com',avatarUrl:'https://lh3.googleusercontent.com/wrong'};failed=await begin();result=await route(callback(failed),failed.cookie);assert.equal(result.headers.Location,'/#board='+board);assert.notEqual((await current()).avatar_url,identity.avatarUrl);
+  await reset();identity={...identity,email:'foto@caaqui.com',subject:'different-subject'};failed=await begin();await route(callback(failed),failed.cookie);assert.equal(await db.one("SELECT user_id FROM oauth_identities WHERE provider='google' AND subject=?",[identity.subject]),undefined);
+  await reset();identity={...identity,subject:'photo-auto-google',avatarUrl:''};failed=await begin();await route(callback(failed),failed.cookie);assert.equal((await current()).avatar_url,'https://lh3.googleusercontent.com/a/photo-auto');
+  await reset();failed=await begin();await db.query('DELETE FROM sessions WHERE token=?',[sessionDigest]);identity.avatarUrl='https://lh3.googleusercontent.com/revoked';await route(callback(failed),failed.cookie);assert.notEqual((await current()).avatar_url,identity.avatarUrl);assert.equal(issued,0);
+});
+
+test('UserInfo complementa foto apenas após validar o token e exige o mesmo subject',async()=>{
+  let data={sub:payload.sub,picture:'https://lh3.googleusercontent.com/a/from-userinfo'},calls=0;
+  mock.method(OAuth2Client.prototype,'getToken',async()=>({tokens:{id_token:'verified-by-sdk',access_token:'temporary-only'}}));
+  mock.method(OAuth2Client.prototype,'verifyIdToken',async()=>({getPayload:()=>payload}));
+  mock.method(OAuth2Client.prototype,'request',async options=>{calls++;assert.equal(options.url,'https://openidconnect.googleapis.com/v1/userinfo');return {data}});
+  try{
+    const args={code:'code',verifier:'verifier',nonce:'nonce'};
+    assert.equal((await googleProvider.finish(config,args)).avatarUrl,data.picture);
+    data={...data,sub:'another-person'};assert.equal((await googleProvider.finish(config,args)).avatarUrl,'');assert.equal(calls,2);
+    await assert.rejects(googleProvider.finish(config,{...args,nonce:'wrong'}));assert.equal(calls,2);
+    data={...data,sub:payload.sub,picture:'https://evil.test/photo'};assert.equal((await googleProvider.finish(config,args)).avatarUrl,'');
+  }finally{mock.restoreAll()}
 });

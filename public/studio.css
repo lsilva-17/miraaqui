@@ -174,4 +174,3 @@ input:not([type=color]):not([type=checkbox]),textarea,[contenteditable=true]{cur
 #selectionbar.compact-selection .text-position-options button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:65px;width:100%;padding:9px 5px;border:1px solid #e9e4df;border-radius:7px;font:400 10px/1.3 Poppins,sans-serif}
 #selectionbar.compact-selection .text-position-options button>span{display:inline}
 #selectionbar.compact-selection .text-position-options button[aria-pressed=true]{border-color:#f0612d80;background:#fff0e5;color:#b8461c}
-.profile-photo-sync{padding:16px 0;margin:12px 0;border-top:1px solid #eee9e4;border-bottom:1px solid #eee9e4}.profile-photo-sync>strong{font-size:13px}.profile-photo-sync p{font-size:12px!important;line-height:1.7!important}.profile-photo-sync button{width:100%}
