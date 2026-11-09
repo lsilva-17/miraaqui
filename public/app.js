@@ -233,7 +233,7 @@ function drawConnectionPreview(e){
   highlightAttachment(attachment);
 }
 function connectObjects(from,to,fromSide,toSide,toAnchor){if(!from||!to||from===to||!state.objects.has(from)||!state.objects.has(to))return;const o=make('line',0,0,'',DEFAULT_LINE_COLOR,1,1);o.from=from;o.to=to;if(fromSide)o.fromSide=fromSide;if(toSide)o.toSide=toSide;if(toAnchor)o.toAnchor=toAnchor;setSelection([o.id]);doCommit([{id:o.id,object:o}])}
-const noteColors=[['Branco','#ffffff'],['Amarelo','#fff0a9'],['Laranja','#ffd5bc'],['Coral','#ffb8b8'],['Rosa','#ffc9dd'],['Lilás','#e4dcf4'],['Roxo','#c7bef3'],['Azul','#c9e8ff'],['Turquesa','#c8f0ee'],['Verde','#d5ead4']];
+const noteColors=[['Branco','#ffffff'],['Preto','#000000'],['Amarelo','#fff0a9'],['Laranja','#ffd5bc'],['Coral','#ffb8b8'],['Rosa','#ffc9dd'],['Lilás','#e4dcf4'],['Roxo','#c7bef3'],['Azul','#c9e8ff'],['Turquesa','#c8f0ee'],['Verde','#d5ead4'],['Cinza','#d9d9d9']];
 $('#stickyColors').innerHTML=noteColors.map(([name,color])=>'<button type="button" data-note-color="'+color+'" aria-label="'+name+'" title="'+name+'" style="--swatch:'+color+'"></button>').join('');
 
 function closeShapePalette(){const palette=$('#shapePalette');if(palette)palette.hidden=true;$('[data-tool="shapes"]').setAttribute('aria-expanded','false')}
