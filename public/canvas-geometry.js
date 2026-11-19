@@ -215,7 +215,7 @@ export function duplicateObjects(objects,ids,newId,delta={x:25,y:25}){
 export function altDragCopies(objects,ids,newId){
   const mutable=new Map([...objects].filter(([id])=>!elementLocked(objects,id))),copies=duplicateObjects(mutable,ids.filter(id=>mutable.has(id)),newId,{x:0,y:0}),copiedIds=new Set(copies.map(o=>o.id)),geometryObjects=new Map([...objects,...copies.map(o=>[o.id,o])]);
   for(const copy of copies){
-    if(copy.type==='sticky')copy.text='';
+    if(copy.type==='sticky'){copy.text='';delete copy.textMarks}
     if(copy.type!=='line'||copy.free)continue;
     // Connections within the copied selection stay bound. External ends become movable points.
     const geometry=connectionGeometry(copy,geometryObjects);if(!geometry)continue;

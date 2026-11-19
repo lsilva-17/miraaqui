@@ -1,3 +1,4 @@
+import {textMarkError,clearTextMark} from './text-markup.js';
 import {SHAPE_TYPES,isShape,shapeFormat} from './shapes.js';
 export const TEXT_FONTS=['Poppins','Arial','Georgia','monospace'];
 export const TEXT_TYPES=['sticky','rect','ellipse','diamond','triangle','hexagon','text','frame','line'];
@@ -13,6 +14,7 @@ export function appearanceChanges(objects,ids,type,patch){return ids.filter(id=>
 export function textFormat(o){const blackFill=o.color?.toLowerCase()==='#000000'&&(o.type==='sticky'||isShape(o)&&shapeFormat(o).opacity>=50);return {fontFamily:'Poppins',fontSize:o.type==='text'?(o.h===35?14:25):o.type==='frame'?15:17,color:o.type==='text'?o.color:blackFill?'#ffffff':'#1e131e',bold:o.type==='frame',italic:false,underline:false,align:o.type==='frame'?'left':'center',vertical:o.type==='frame'?'top':'middle',...o.textStyle}}
 export function textCss(o){const s=textFormat(o);return `font-family:${TEXT_FONTS.includes(s.fontFamily)?s.fontFamily:'Poppins'};font-size:${Number(s.fontSize)||17}px;font-weight:${s.bold?700:400};font-style:${s.italic?'italic':'normal'};text-decoration:${s.underline?'underline':'none'};text-align:${['left','center','right'].includes(s.align)?s.align:'left'};color:${/^#[a-f\d]{6}$/i.test(s.color)?s.color:'#1e131e'};`}
 export function propertyError(o){
+  const marksError=textMarkError(o);if(marksError)return marksError;
   if(o.lineStyle!==undefined){
     const s=o.lineStyle;if(o.type!=='line'||!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(key=>!['start','end','pattern','width','route','elbow'].includes(key)))return 'Estilo de linha inválido.';
     if(s.elbow!==undefined){const e=s.elbow;if(!e||typeof e!=='object'||Array.isArray(e)||Object.keys(e).some(k=>!['axis','offset','start','end','leadStart','leadEnd'].includes(k))||!['x','y'].includes(e.axis)||['offset','start','end','leadStart','leadEnd'].some(k=>e[k]!==undefined&&(!Number.isFinite(e[k])||Math.abs(e[k])>1e7)))return 'Ajuste angular inválido.'}
@@ -55,7 +57,7 @@ export function elementLocked(objects,id){const o=objects.get(id);return !!o&&(!
 export function groupChanges(objects,ids,newId){const selected=expandGroups(objects,ids);if(selected.length<2||selected.some(id=>elementLocked(objects,id)))return [];const groupId=newId();return selected.map(id=>({id,object:{...objects.get(id),groupId}}))}
 export function ungroupChanges(objects,ids){return expandGroups(objects,ids).filter(id=>objects.get(id).groupId&&!elementLocked(objects,id)).map(id=>({id,object:{...objects.get(id),groupId:null}}))}
 export function lockChanges(objects,ids,locked){return expandGroups(objects,ids).map(id=>({id,object:{...objects.get(id),locked}}))}
-export function formatChanges(objects,ids,patch){return ids.filter(id=>TEXT_TYPES.includes(objects.get(id)?.type)&&!elementLocked(objects,id)).map(id=>({id,object:{...objects.get(id),textStyle:{...objects.get(id).textStyle,...patch}}}))}
+export function formatChanges(objects,ids,patch){return ids.filter(id=>TEXT_TYPES.includes(objects.get(id)?.type)&&!elementLocked(objects,id)).map(id=>{const o=objects.get(id);let marks=o.textMarks;for(const key of ['bold','italic','underline'])if(patch[key]!==undefined&&marks)marks=clearTextMark(marks,key);return{id,object:{...o,textStyle:{...o.textStyle,...patch},...(marks?{textMarks:marks}:{})}}})}
 export function elementLayer(o){return o.type==='frame'?0:o.type==='line'?2:o.type==='pen'?4:(o.z||0)<0?1:3}
 export function layerChanges(objects,ids,front){
   const values=[...objects.values()].map(o=>o.z||0),z=front?Math.max(0,...values)+1:Math.min(0,...values)-ids.length;

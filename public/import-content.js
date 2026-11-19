@@ -5,7 +5,7 @@ import {roadmapError} from './roadmap.js';
 
 export const IMPORT_LIMIT=500,IMPORT_BYTES=5_500_000;
 const TYPES=['sticky','rect','ellipse','diamond','triangle','hexagon','text','frame','line','pen','image','roadmap'];
-const KEYS=['id','type','x','y','w','h','text','color','z','groupId','textStyle','shapeStyle','frameStyle','lineStyle','roadmap','src','points','free','from','to','fromPoint','toPoint','fromAnchor','toAnchor','fromSide','toSide'];
+const KEYS=['id','type','x','y','w','h','text','color','z','groupId','textStyle','textMarks','shapeStyle','frameStyle','lineStyle','roadmap','src','points','free','from','to','fromPoint','toPoint','fromAnchor','toAnchor','fromSide','toSide'];
 const COLORS={black:'#242124',grey:'#9c9a97','light-violet':'#e4dcf4',violet:'#976dcc',blue:'#219ebc','light-blue':'#cbeef3',yellow:'#fff0a9',orange:'#ffd5bc',green:'#9ececc','light-green':'#d5ead4',red:'#ffb8b8','light-red':'#ffc9dd',white:'#ffffff'};
 const color=(value,fallback='#ffffff')=>/^#[a-f\d]{6}$/i.test(value||'')?value:COLORS[value]||fallback;
 const number=(v,fallback=0)=>Number.isFinite(v)?v:fallback;

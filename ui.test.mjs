@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import * as markup from './public/text-markup.js';
 import * as geometry from './public/canvas-geometry.js';
 import * as properties from './public/element-properties.js';
 import * as roadmap from './public/roadmap.js';
@@ -24,7 +25,7 @@ async function ui(){
   const textPositionButtons=[...['left','center','right'].map(textAlign=>Object.assign(node('text-align-'+textAlign),{dataset:{textAlign}})),...['top','middle','bottom'].map(textVertical=>Object.assign(node('text-vertical-'+textVertical),{dataset:{textVertical}}))];
   const document={createElement:tag=>node('created-'+tag),querySelector:selector=>selector==='dialog[open]'?null:node(selector),querySelectorAll:s=>s==='[data-tool]'?tools:s==='[data-note-color]'?colors:s==='[data-arrange]'?arrangeButtons:s==='[data-text-align], [data-text-vertical]'?textPositionButtons:[],
     elementsFromPoint(){return []},elementFromPoint(){return {closest(){return null}}},getElementById(id){return node(id)},addEventListener(type,fn){listeners.set(type,fn)},documentElement:node('root')};
-  const context=vm.createContext({...geometry,...properties,...roadmap,...shapes,...importing,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
+  const context=vm.createContext({...markup,...geometry,...properties,...roadmap,...shapes,...importing,document,window:{addEventListener(){}},crypto:{randomUUID:()=>crypto.randomUUID()},
     location:{hash:'',replace(url){requests.push({navigation:url})}},URLSearchParams,sessionStorage:(()=>{const values=new Map();return {getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value)}})(),structuredClone,setTimeout,clearTimeout,console,fetch:async(url,options)=>{requests.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>({})}}});
   const source=(await readFile(new URL('./public/app.js',import.meta.url),'utf8')).replace(/^import[^\n]+\n/,'').replace(/init\(\);\s*$/,'');
   vm.runInContext(source+'\nglobalThis.ui={state,vp,finishDrag,undo,redo,selectObjects,changeDragConstraint,groupSelection,ungroupSelection,toggleSelectionLock,formatSelection,arrangeSelection,orderSelection,deleteSelected,copySelection,pasteSelection,setSelectionColor,renderEndpoints,readOnly,template,saveRoadmap,saveInlineRoadmap,beginTextEdit,finishTextEdit,applyAppearance,chooseShape,svgExport,applyExternalPayload,openImportPanel,avatarContent,syncGooglePhotoIfNeeded,setGoogleEnabled(value){googleEnabled=value},nodes:null};',context);
@@ -496,8 +497,8 @@ test('Ctrl B funciona na seleção e na barra, evita repetição e respeita bloq
  app.state.user={role:'viewer'};app.listeners.get('keydown')(key());await app.state.pending;assert.equal(app.state.objects.get('source').textStyle.bold,true);
 });
 test('Ctrl B durante edição mantém o cursor, salva com o texto e desfaz como uma ação',async()=>{
- for(const type of ['sticky','rect','line','frame']){const app=await ui();app.state.objects.set('source',type==='line'?{...geometry.newFreeArrow({x:0,y:0},{x:400,y:100},'source'),text:'Original'}:{...sticky(),type});app.selectObjects(['source']);const input=app.beginTextEdit('source'),before=properties.textFormat(app.state.objects.get('source')).bold;input.value='Texto editado';input.selectionStart=2;input.selectionEnd=5;
-  input.onkeydown({key:'b',ctrlKey:true,preventDefault(){},stopPropagation(){}});assert.equal(input.style.fontWeight,before?'400':'700');assert.equal(input.selectionStart,2);assert.equal(input.selectionEnd,5);assert.equal(app.state.objects.get('source').text,'Original');
+ for(const type of ['sticky','rect','line','frame']){const app=await ui();app.state.objects.set('source',type==='line'?{...geometry.newFreeArrow({x:0,y:0},{x:400,y:100},'source'),text:'Original'}:{...sticky(),type});app.selectObjects(['source']);const input=app.beginTextEdit('source'),before=properties.textFormat(app.state.objects.get('source')).bold;input.value='Texto editado';input.selectionStart=0;input.selectionEnd=input.value.length;
+  input.onkeydown({key:'b',ctrlKey:true,preventDefault(){},stopPropagation(){}});assert.equal(input.style.fontWeight,before?'400':'700');assert.equal(input.selectionStart,0);assert.equal(input.selectionEnd,input.value.length);assert.equal(app.state.objects.get('source').text,'Original');
   input.onkeydown({key:'Enter',preventDefault(){},stopPropagation(){}});await app.state.pending;assert.equal(app.state.objects.get('source').text,'Texto editado');assert.equal(app.state.objects.get('source').textStyle.bold,!before);assert.equal(app.requests.filter(r=>r.url.endsWith('/objects')).length,1);app.undo();await app.state.pending;assert.equal(app.state.objects.get('source').text,'Original');assert.equal(properties.textFormat(app.state.objects.get('source')).bold,before);
   app.beginTextEdit('source');input.onkeydown({key:'b',metaKey:true,preventDefault(){},stopPropagation(){}});input.onkeydown({key:'Escape',preventDefault(){},stopPropagation(){}});assert.equal(properties.textFormat(app.state.objects.get('source')).bold,before);
  }
@@ -507,4 +508,9 @@ test('Arrastar junção mostra guia, encaixa sem mover pontas, permite Alt e des
  const target={closest:s=>s==='[data-line-segment]'?{dataset:{lineSegment:'middle',lineId:'source',axis:'x'}}:null};app.vp.onpointerdown({...pointer(app,700,450),target});app.vp.onpointermove({...pointer(app,774,450),altKey:false});assert.match(app.node('#dragGuide').innerHTML,/connection-alignment-guide/);assert.equal(geometry.connectionGeometry(app.state.objects.get('source'),app.state.objects).elbowPoints[2].x,340);
  app.vp.onpointerup({...pointer(app,774,450),altKey:false});await app.state.pending;assert.equal(app.node('#dragGuide').innerHTML,'');assert.deepEqual(app.state.objects.get('source').points,line.points);app.undo();await app.state.pending;assert.equal(app.state.objects.get('source').lineStyle.elbow,undefined);
  app.vp.onpointerdown({...pointer(app,700,450),target});app.vp.onpointermove({...pointer(app,774,450),altKey:true});assert.equal(app.node('#dragGuide').innerHTML,'');assert.equal(geometry.connectionGeometry(app.state.objects.get('source'),app.state.objects).elbowPoints[2].x,337);app.finishDrag(true);
+});
+
+test('Ctrl B em parte do texto salva apenas o trecho marcado, preserva conteúdo e desfaz',async()=>{
+ const app=await ui();app.state.objects.set('source',{...sticky(),text:'Discovery técnico'});app.selectObjects(['source']);const input=app.beginTextEdit('source');input.selectionStart=0;input.selectionEnd=9;input.onkeydown({key:'b',ctrlKey:true,preventDefault(){},stopPropagation(){}});input.onkeydown({key:'Enter',preventDefault(){},stopPropagation(){}});await app.state.pending;
+ const o=app.state.objects.get('source');assert.equal(o.text,'Discovery técnico');assert.deepEqual(JSON.parse(JSON.stringify(o.textMarks)),[{from:0,to:9,bold:true}]);assert.equal(o.textStyle?.bold,undefined);assert.ok(app.node('#objects').innerHTML.includes('<span style="font-weight:700">Discovery</span> técnico'));assert.ok(app.svgExport().includes('<span style="font-weight:700">Discovery</span> técnico'));app.undo();await app.state.pending;assert.equal(app.state.objects.get('source').textMarks,undefined);
 });
