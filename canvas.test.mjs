@@ -2,7 +2,7 @@ import {arrangeChanges,groupChanges,ungroupChanges,expandGroups,elementLocked,pr
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {lineFormat,lineAttributes,frameFormat,frameCss,appearanceChanges} from './public/element-properties.js';
-import {areaBetween,equalSpacing,newFrameFromDrag,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,quickConnectedCardPoint,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,connectionAttachment,moveEndpoint,translateObject,elbowSegmentHandles,moveElbowSegment,lineLabelPoint} from './public/canvas-geometry.js';
+import {areaBetween,equalSpacing,newFrameFromDrag,worldPoint,selectionInArea,connectionGeometry,segmentInArea,duplicateObjects,deletionIds,looseConnectionPath,resizedObject,newConnectedCard,quickConnectedCardPoint,emptyNoteCopy,newFreeArrow,snapPoint,DEFAULT_CARD_COLOR,DEFAULT_LINE_COLOR,attachmentAt,connectionAttachment,moveEndpoint,translateObject,elbowSegmentHandles,moveElbowSegment,snapElbowSegment,lineLabelPoint} from './public/canvas-geometry.js';
 const a={id:'a',type:'sticky',x:100,y:100,w:100,h:80},b={id:'b',type:'rect',x:350,y:100,w:120,h:80},frame={id:'f',type:'frame',x:50,y:50,w:500,h:400};
 test('Seta angular mantém segmentos ortogonais e permite ajustar as três arestas sem soltar as âncoras',()=>{
   const objects=new Map([a,{...b,y:300}].map(o=>[o.id,o])),line={id:'angular',type:'line',from:'a',to:'b',fromSide:'right',toSide:'left',x:0,y:0,w:1,h:1,color:'#000000',lineStyle:{route:'elbow'}};
@@ -157,4 +157,26 @@ test('Controles laterais alteram somente um eixo e preservam a borda oposta',()=
   const o={id:'s',type:'rect',x:100,y:200,w:400,h:120};
   for(const [side,expected]of [['e',{x:100,y:200,w:430,h:120}],['w',{x:130,y:200,w:370,h:120}],['n',{x:100,y:240,w:400,h:80}],['s',{x:100,y:200,w:400,h:160}]]){const next=resizedObject(o,{x:30,y:40},side);for(const key of ['x','y','w','h'])assert.equal(next[key],expected[key])}
   const min=resizedObject(o,{x:1000,y:1000},'w');assert.equal(min.w,50);assert.equal(min.h,120);assert.equal(min.x+min.w,o.x+o.w);
+});
+
+test('Conexões diagonais automáticas usam uma única dobra e mantêm o ponto ao ajustar o caminho',()=>{
+ const source={id:'source',type:'sticky',x:100,y:100,w:180,h:160,color:'#ffffff',text:'Discovery'};
+ for(const [side,point]of [['bottom',{x:650,y:700}],['top',{x:650,y:-500}],['right',{x:750,y:500}],['left',{x:-500,y:500}],['bottom',{x:-450,y:700}],['top',{x:-450,y:-500}],['right',{x:750,y:-300}],['left',{x:-500,y:-300}]]){
+  let id=0;const {card,line}=newConnectedCard(source,point,side,()=>String(++id));line.lineStyle={route:'elbow'};const map=new Map([source,card].map(o=>[o.id,o])),g=connectionGeometry(line,map);
+  assert.equal(g.points.length,3,side+' deveria ter somente uma dobra');for(let i=1;i<g.points.length;i++)assert.ok(g.points[i].x===g.points[i-1].x||g.points[i].y===g.points[i-1].y);
+  const shifted=moveElbowSegment(line,'middle',{x:1,y:1},map),next=connectionGeometry(shifted,map);assert.deepEqual(next.start,g.start);assert.deepEqual(next.end,g.end);assert.equal(next.elbow.offset,g.elbow.offset+1);assert.equal(propertyError(shifted),null);
+ }
+});
+test('Rota em L respeita portas fixas e preserva caminhos ajustados manualmente',()=>{
+ const boxes=new Map([['a',{id:'a',type:'sticky',x:0,y:0,w:180,h:160}],['b',{id:'b',type:'sticky',x:600,y:500,w:180,h:160}]]),line={id:'link',type:'line',from:'a',to:'b',fromSide:'bottom',toSide:'left',lineStyle:{route:'elbow'}};
+ const g=connectionGeometry(line,boxes);assert.equal(g.points.length,3);assert.deepEqual(g.points[1],{x:90,y:580});assert.deepEqual(g.end,{x:600,y:580});
+ const custom={...line,lineStyle:{route:'elbow',elbow:{axis:'y',offset:50,start:20,end:-30}}},manual=connectionGeometry(custom,boxes);assert.equal(manual.elbow.offset,50);assert.equal(manual.elbow.start,20);assert.equal(manual.elbow.end,-30);assert.ok(manual.points.length>3);
+});
+test('Junções de setas encaixam em segmentos verticais e horizontais com tolerância constante no zoom',()=>{
+ for(const zoom of [.25,1,2,4])for(const transpose of [false,true]){
+  const point=(x,y)=>transpose?{x:y,y:x}:{x,y},axis=transpose?'y':'x',make=(id,x1,y1,x2,y2)=>({...newFreeArrow(point(x1,y1),point(x2,y2),id),lineStyle:{route:'elbow'}}),moving=make('moving',0,0,400,200),reference=make('reference',20,200,420,400),map=new Map([moving,reference].map(o=>[o.id,o])),delta={x:0,y:0,[axis]:20-6/zoom};
+  const result=snapElbowSegment(moving,'middle',delta,map,zoom),g=connectionGeometry(result.object,map);assert.equal(g.elbowPoints[2][axis],220);assert.equal(result.guides.length,1);assert.equal(result.guides[0].axis,axis);assert.deepEqual(g.start,connectionGeometry(moving,map).start);assert.deepEqual(g.end,connectionGeometry(moving,map).end);
+  assert.equal(snapElbowSegment(moving,'middle',delta,map,zoom,{snap:false}).guides.length,0);
+  const outside=snapElbowSegment(moving,'middle',{x:0,y:0,[axis]:20-12/zoom},map,zoom);assert.equal(outside.guides.length,0);
+ }
 });

@@ -94,8 +94,15 @@ export function connectionGeometry(line,objects){
   const a=objects.get(line.from),b=objects.get(line.to),ac=a?{x:a.x+a.w/2,y:a.y+a.h/2}:line.fromPoint,bc=b?{x:b.x+b.w/2,y:b.y+b.h/2}:line.toPoint;if(!ac||!bc)return null;
   const curved=!!(a&&normals[line.fromSide]||b&&normals[line.toSide]);let toSide=normals[line.toSide]?line.toSide:null;
   if(curved&&b&&!toSide){const dx=ac.x-bc.x,dy=ac.y-bc.y;toSide=Math.abs(dx)/(b.w/2)>=Math.abs(dy)/(b.h/2)?dx<0?'left':'right':dy<0?'top':'bottom'}
+  if(a&&b&&line.lineStyle?.route==='elbow'&&!line.lineStyle.elbow&&!line.toSide&&!line.toAnchor){
+    const source=edgePoint(a,bc,line.fromSide,line.fromAnchor),normal=normals[line.fromSide]||normals[attachmentAt(a,source).side];
+    // When the target is diagonal, enter through its perpendicular side instead
+    // of creating a second bend merely to reach its nearest automatic port.
+    const side=normal.y?(source.x<b.x?'left':source.x>b.x+b.w?'right':null):(source.y<b.y?'top':source.y>b.y+b.h?'bottom':null);
+    if(side){const target=edgePoint(b,source,side),forward=(target.x-source.x)*normal.x+(target.y-source.y)*normal.y;if(forward>=0)toSide=side}
+  }
   const start=a?edgePoint(a,bc,line.fromSide,line.fromAnchor):ac,end=b?edgePoint(b,ac,toSide,line.toAnchor):bc;
-  if(line.lineStyle?.route)return routedLine(start,end,line.lineStyle.route,a&&normals[line.fromSide||(line.lineStyle.route==='elbow'?attachmentAt(a,start).side:null)],b&&normals[toSide||(line.lineStyle.route==='elbow'?attachmentAt(b,end).side:null)],line.lineStyle.elbow);
+  if(line.lineStyle?.route)return{...routedLine(start,end,line.lineStyle.route,a&&normals[line.fromSide||(line.lineStyle.route==='elbow'?attachmentAt(a,start).side:null)],b&&normals[toSide||(line.lineStyle.route==='elbow'?attachmentAt(b,end).side:null)],line.lineStyle.elbow),toSide};
   if(!curved)return{start,end,path:`M${start.x} ${start.y} L${end.x} ${end.y}`,points:[start,end]};
   const distance=Math.max(45,Math.min(180,Math.hypot(end.x-start.x,end.y-start.y)/2)),length=Math.hypot(end.x-start.x,end.y-start.y)||1;
   const direction={x:(end.x-start.x)/length,y:(end.y-start.y)/length},n1=a&&normals[line.fromSide]||direction,n2=b&&normals[toSide]||{x:-direction.x,y:-direction.y};
@@ -108,6 +115,10 @@ function routedLine(start,end,route,n1,n2,adjustment){
   if(route==='elbow'){
     const axis=adjustment?.axis||(n1?n1.y?'y':'x':n2?n2.y?'y':'x':Math.abs(end.x-start.x)>=Math.abs(end.y-start.y)?'x':'y'),cross=axis==='x'?'y':'x',elbow={axis,offset:adjustment?.offset||0,start:adjustment?.start??(n1?.[cross]||0)*28,end:adjustment?.end??(n2?.[cross]||0)*28,leadStart:adjustment?.leadStart??28,leadEnd:adjustment?.leadEnd??28},clearance=n1?.[axis]===-n2?.[axis]?Math.min(40,Math.abs(end[axis]-start[axis])/3):40;
     let automatic=(start[axis]+end[axis])/2;for(const [point,normal]of [[start,n1],[end,n2]])if(normal?.[axis])automatic=normal[axis]<0?Math.min(automatic,point[axis]-clearance):Math.max(automatic,point[axis]+clearance);
+    if(!adjustment&&n1&&n2&&n1.x*n2.x+n1.y*n2.y===0){
+      const corner=n1.x?{x:end.x,y:start.y}:{x:start.x,y:end.y},forward=(corner.x-start.x)*n1.x+(corner.y-start.y)*n1.y,approach=(corner.x-end.x)*n2.x+(corner.y-end.y)*n2.y;
+      if(forward>=0&&approach>=0){elbow.start=0;elbow.end=0;elbow.offset=corner[axis]-automatic}
+    }
     const middle=automatic+elbow.offset,first=start[cross]+elbow.start,last=end[cross]+elbow.end;
     const point=(along,across)=>({[axis]:along,[cross]:across}),direction=Math.sign(end[axis]-start[axis])||1,elbowLeadDirections={start:n1?.[axis]??direction,end:n2?.[axis]??-direction},startAlong=start[axis]+(elbow.start?elbowLeadDirections.start*elbow.leadStart:0),endAlong=end[axis]+(elbow.end?elbowLeadDirections.end*elbow.leadEnd:0),elbowPoints=[start,point(startAlong,first),point(middle,first),point(middle,last),point(endAlong,last),end],pathPoints=[start,point(startAlong,start[cross]),...elbowPoints.slice(1,5),point(endAlong,end[cross]),end],points=pathPoints.filter((p,i)=>!i||p.x!==pathPoints[i-1].x||p.y!==pathPoints[i-1].y);
     return{start,end,points,elbow,elbowPoints,elbowLeadDirections,path:points.map((p,i)=>(i?'L':'M')+p.x+' '+p.y).join(' ')};
@@ -134,7 +145,26 @@ export function elbowSegmentHandles(line,objects,zoom=1){
 export function moveElbowSegment(line,kind,delta,objects){
   const geometry=connectionGeometry(line,objects);if(!geometry?.elbow||!['start','middle','end','channel','leadStart','leadEnd'].includes(kind))return structuredClone(line);const elbow={...geometry.elbow},cross=elbow.axis==='x'?'y':'x';
   if(kind==='leadStart'||kind==='leadEnd')elbow[kind]=Math.max(0,elbow[kind]+delta[elbow.axis]*geometry.elbowLeadDirections[kind==='leadStart'?'start':'end']);else if(kind==='middle')elbow.offset+=delta[elbow.axis];else if(kind==='channel'){elbow.start+=delta[cross];elbow.end+=delta[cross]}else elbow[kind]+=delta[cross];
-  return{...structuredClone(line),lineStyle:{...line.lineStyle,route:'elbow',elbow}};
+  return{...structuredClone(line),...(!line.toSide&&!line.toAnchor&&geometry.toSide?{toSide:geometry.toSide}:{}),lineStyle:{...line.lineStyle,route:'elbow',elbow}};
+}
+export function snapElbowSegment(line,kind,delta,objects,zoom=1,{snap=true}={}){
+  const object=moveElbowSegment(line,kind,delta,objects),plain={object,guides:[]};if(!snap)return plain;
+  const handle=elbowSegmentHandles(object,objects,zoom).find(h=>h.kind===kind),geometry=connectionGeometry(object,objects);if(!handle||!geometry)return plain;
+  const {axis}=handle,cross=axis==='x'?'y':'x',tolerance=10/zoom;
+  const ranges=geometry.points.slice(1).flatMap((b,i)=>{const a=geometry.points[i];return Math.abs(a[axis]-b[axis])<1e-6&&Math.abs(a[axis]-handle.point[axis])<1e-6?[{start:Math.min(a[cross],b[cross]),end:Math.max(a[cross],b[cross])}]:[]});
+  if(!ranges.length)return plain;const start=Math.min(...ranges.map(r=>r.start)),end=Math.max(...ranges.map(r=>r.end));let best=null;
+  for(const reference of objects.values()){
+    if(reference.type!=='line'||reference.id===line.id)continue;const g=connectionGeometry(reference,objects);if(!g)continue;
+    for(let i=1;i<g.points.length;i++){
+      const a=g.points[i-1],b=g.points[i];if(Math.abs(a[axis]-b[axis])>1e-6||Math.abs(a[cross]-b[cross])*zoom<8)continue;
+      const distance=Math.abs(a[axis]-handle.point[axis]),low=Math.min(a[cross],b[cross]),high=Math.max(a[cross],b[cross]),gap=Math.max(0,low-end,start-high);
+      if(distance>tolerance||gap*zoom>80||best&&(distance>best.distance||distance===best.distance&&gap>=best.gap))continue;
+      best={distance,gap,value:a[axis],start:Math.min(start,low),end:Math.max(end,high)};
+    }
+  }
+  if(!best)return plain;const snapped=moveElbowSegment(line,kind,{...delta,[axis]:delta[axis]+best.value-handle.point[axis]},objects),aligned=elbowSegmentHandles(snapped,objects,zoom).find(h=>h.kind===kind);
+  if(!aligned||Math.abs(aligned.point[axis]-best.value)>1e-6)return plain;
+  return{object:snapped,guides:[{axis,value:best.value,start:best.start,end:best.end}]};
 }
 // Match the external blue ports and the edge in screen pixels, at every zoom.
 export function connectionAttachment(objects,point,zoom=1,{targetId=null,excludeId=null}={}){
